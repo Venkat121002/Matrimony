@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
 
 async function runTests() {
   console.log('================================================================');
@@ -89,7 +89,7 @@ async function runTests() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'admin',
-        password: 'Admin@TamilNikah2026!',
+        password: process.env.ADMIN_PASSWORD || 'Admin@TamilNikah2026!',
         portalType: 'admin',
       }),
     }).then((r) => r.json());

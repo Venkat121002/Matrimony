@@ -10,9 +10,9 @@
     "client": "npm --prefix frontend run dev",
     "client:build": "npm --prefix frontend run build",
     "build": "npm --prefix frontend run build",
-    "seed": "node backend/utils/seedData.js",
     "test:backend": "node backend/test_integration.js",
-    "install:all": "npm install --prefix backend && npm install --prefix frontend"
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "deploy": "npm --prefix frontend run build && firebase deploy"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
@@ -22,7 +22,7 @@
     "matrimony",
     "react",
     "express",
-    "mongodb",
+    "firestore",
     "tamil-nikah"
   ],
   "author": "",

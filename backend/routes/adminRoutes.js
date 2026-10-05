@@ -15,6 +15,7 @@ import {
 import { getAllTickets, updateTicket } from '../controllers/supportController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { requireAdmin } from '../middleware/adminMiddleware.js';
+import { getAdminSecretKey } from '../config/secrets.js';
 
 const router = express.Router();
 
@@ -23,12 +24,10 @@ router.post('/login', adminLogin);
 
 // Secret-key bypass middleware – allows the standalone admin page to authenticate
 // by passing the secret key in the X-Admin-Key header, bypassing JWT.
-const adminSecretKey = process.env.ADMIN_SECRET_KEY || 'nikah-admin-secret-2026';
-
 const requireAdminAccess = (req, res, next) => {
   // Allow if the secret key header is present and correct
   const providedKey = req.headers['x-admin-key'];
-  if (providedKey && providedKey === (process.env.ADMIN_SECRET_KEY || adminSecretKey)) {
+  if (providedKey && providedKey === getAdminSecretKey()) {
     return next();
   }
   // Otherwise fall back to JWT-based admin auth

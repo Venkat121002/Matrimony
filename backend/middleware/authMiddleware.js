@@ -1,15 +1,16 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import { getUserById, checkTrialStatus } from '../models/users.js';
+import { getJwtSecret } from '../config/secrets.js';
+
+const readToken = (req) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.split(' ')[1];
+  return req.headers['x-access-token'] || null;
+};
 
 export const verifyToken = async (req, res, next) => {
   try {
-    let token = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.headers['x-access-token']) {
-      token = req.headers['x-access-token'];
-    }
+    const token = readToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -18,10 +19,9 @@ export const verifyToken = async (req, res, next) => {
       });
     }
 
-    const secret = process.env.JWT_SECRET || 'tamil_nikah_jwt_secret_key_2026';
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, getJwtSecret());
 
-    const user = await User.findById(decoded.id);
+    const user = await getUserById(decoded.id);
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -37,7 +37,7 @@ export const verifyToken = async (req, res, next) => {
     }
 
     // Refresh trial status if applicable
-    user.checkTrialStatus();
+    checkTrialStatus(user);
 
     req.user = user;
     next();
@@ -51,20 +51,12 @@ export const verifyToken = async (req, res, next) => {
 
 export const optionalAuth = async (req, res, next) => {
   try {
-    let token = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.headers['x-access-token']) {
-      token = req.headers['x-access-token'];
-    }
-
+    const token = readToken(req);
     if (token) {
-      const secret = process.env.JWT_SECRET || 'tamil_nikah_jwt_secret_key_2026';
-      const decoded = jwt.verify(token, secret);
-      const user = await User.findById(decoded.id);
+      const decoded = jwt.verify(token, getJwtSecret());
+      const user = await getUserById(decoded.id);
       if (user && !user.isSuspended) {
-        user.checkTrialStatus();
+        checkTrialStatus(user);
         req.user = user;
       }
     }

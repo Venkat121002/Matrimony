@@ -1,4 +1,4 @@
-import User from '../models/User.js';
+import { findUsers, updateUser } from '../models/users.js';
 import { sendMatchingProfileRecommendationEmail } from './emailService.js';
 
 /**
@@ -15,7 +15,7 @@ export const isProfileMatch = (premiumUser, newProfile) => {
   }
 
   // 2. Cannot match own account
-  if (premiumUser._id?.toString() === newProfile._id?.toString() || premiumUser.nikahId === newProfile.nikahId) {
+  if (premiumUser._id === newProfile._id || premiumUser.nikahId === newProfile.nikahId) {
     return false;
   }
 
@@ -68,12 +68,9 @@ export const notifyMatchingPremiumUsers = async (newProfile) => {
     const targetGender = newProfile.gender === 'groom' ? 'bride' : 'groom';
 
     // Find all active premium users of the opposite gender
-    const premiumUsers = await User.find({
-      gender: targetGender,
-      subscriptionStatus: 'premium',
-      isSuspended: { $ne: true },
-      _id: { $ne: newProfile._id },
-    });
+    const premiumUsers = (await findUsers({ gender: targetGender, subscriptionStatus: 'premium' })).filter(
+      (u) => u.isSuspended !== true && u._id !== newProfile._id
+    );
 
     if (!premiumUsers || premiumUsers.length === 0) {
       console.log(`[Matching Service] No active premium ${targetGender} accounts to notify.`);
@@ -105,10 +102,9 @@ export const notifyMatchingPremiumUsers = async (newProfile) => {
 
     const results = await Promise.all(emailPromises);
 
-    // Update matchNotified flag if this is a stored Mongoose document
-    if (newProfile.save && typeof newProfile.save === 'function') {
-      newProfile.matchNotified = true;
-      await newProfile.save().catch(() => {});
+    // Update matchNotified flag if this is a stored profile
+    if (newProfile._id) {
+      await updateUser(newProfile, { matchNotified: true }).catch(() => {});
     }
 
     return {

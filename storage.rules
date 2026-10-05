@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Photos/audio are served via /uploads/media/* and KYC documents via the admin API,
+    // both through the Cloud Function (Admin SDK). No direct client access.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

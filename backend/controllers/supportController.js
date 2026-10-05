@@ -1,4 +1,9 @@
-import SupportTicket from '../models/SupportTicket.js';
+import {
+  createTicket as insertTicket,
+  findTickets,
+  getTicketById,
+  updateTicket as patchTicket,
+} from '../models/supportTickets.js';
 
 export const createTicket = async (req, res) => {
   try {
@@ -11,8 +16,8 @@ export const createTicket = async (req, res) => {
       });
     }
 
-    const ticket = new SupportTicket({
-      userId: req.user ? req.user._id : undefined,
+    const ticket = await insertTicket({
+      userId: req.user ? req.user._id : null,
       name: name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone?.trim() || '',
@@ -20,8 +25,6 @@ export const createTicket = async (req, res) => {
       message: message.trim(),
       status: 'open',
     });
-
-    await ticket.save();
 
     res.status(201).json({
       success: true,
@@ -39,9 +42,7 @@ export const createTicket = async (req, res) => {
 export const getAllTickets = async (req, res) => {
   try {
     const { status = 'all' } = req.query;
-    const query = status === 'all' ? {} : { status };
-
-    const tickets = await SupportTicket.find(query).sort({ createdAt: -1 });
+    const tickets = await findTickets(status === 'all' ? null : status);
 
     res.json({
       success: true,
@@ -61,16 +62,17 @@ export const updateTicket = async (req, res) => {
     const { id } = req.params;
     const { status, adminResponse } = req.body;
 
-    const ticket = await SupportTicket.findById(id);
+    const ticket = await getTicketById(id);
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Ticket not found.' });
     }
 
-    if (status) ticket.status = status;
-    if (adminResponse !== undefined) ticket.adminResponse = adminResponse;
-    if (status === 'resolved') ticket.resolvedAt = new Date();
+    const patch = {};
+    if (['open', 'in_progress', 'resolved'].includes(status)) patch.status = status;
+    if (adminResponse !== undefined) patch.adminResponse = String(adminResponse);
+    if (status === 'resolved') patch.resolvedAt = new Date();
 
-    await ticket.save();
+    await patchTicket(ticket, patch);
 
     res.json({
       success: true,

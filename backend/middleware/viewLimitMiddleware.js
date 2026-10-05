@@ -1,5 +1,5 @@
-import ProfileView from '../models/ProfileView.js';
-import User from '../models/User.js';
+import { findUserByIdOrNikahId, updateUser } from '../models/users.js';
+import { distinctViewedProfileIds, recordView, currentMonthYear } from '../models/profileViews.js';
 
 export const checkProfileViewLimit = async (req, res, next) => {
   try {
@@ -20,17 +20,13 @@ export const checkProfileViewLimit = async (req, res, next) => {
     }
 
     // Viewing own profile is always permitted
-    if (viewer._id.toString() === targetProfileId || viewer.nikahId === targetProfileId) {
+    if (viewer._id === targetProfileId || viewer.nikahId === targetProfileId) {
+      req.targetProfile = viewer;
       return next();
     }
 
-    // Find the target user document to get their ObjectId
-    let targetUser = null;
-    if (targetProfileId.match(/^[0-9a-fA-F]{24}$/)) {
-      targetUser = await User.findById(targetProfileId);
-    } else {
-      targetUser = await User.findOne({ nikahId: targetProfileId });
-    }
+    // Accepts either the document id or the public Nikah ID
+    const targetUser = await findUserByIdOrNikahId(targetProfileId);
 
     if (!targetUser) {
       return res.status(404).json({
@@ -62,8 +58,7 @@ export const checkProfileViewLimit = async (req, res, next) => {
     // Free Trial / Free Tier Checks
     const now = new Date();
     if (viewer.subscriptionStatus === 'free_trial' && viewer.trialExpiresAt < now) {
-      viewer.subscriptionStatus = 'expired';
-      await viewer.save();
+      await updateUser(viewer, { subscriptionStatus: 'expired' });
       return res.status(403).json({
         success: false,
         limitReached: true,
@@ -84,16 +79,12 @@ export const checkProfileViewLimit = async (req, res, next) => {
     }
 
     // Current Month-Year key (e.g., "2026-09")
-    const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthYear = currentMonthYear(now);
 
     // Get list of distinct profiles viewed by this user
-    const viewedProfileIds = await ProfileView.distinct('viewedProfileId', {
-      viewerId: viewer._id,
-    });
+    const viewedProfileIds = await distinctViewedProfileIds(viewer._id);
 
-    const isAlreadyViewed = viewedProfileIds.some(
-      (id) => id.toString() === targetUser._id.toString()
-    );
+    const isAlreadyViewed = viewedProfileIds.includes(targetUser._id);
 
     const FREE_TIER_LIMIT = 5;
 
@@ -124,16 +115,10 @@ export const checkProfileViewLimit = async (req, res, next) => {
     }
 
     // Record the new profile view
-    await ProfileView.create({
-      viewerId: viewer._id,
-      viewedProfileId: targetUser._id,
-      monthYear,
-      viewedAt: now,
-    });
+    await recordView(viewer._id, targetUser._id, monthYear, now);
 
     // Update user record
-    viewer.monthlyViewsCount = viewedProfileIds.length + 1;
-    await viewer.save();
+    await updateUser(viewer, { monthlyViewsCount: viewedProfileIds.length + 1 });
 
     req.viewStats = {
       isPremium: false,

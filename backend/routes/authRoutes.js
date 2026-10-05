@@ -1,7 +1,7 @@
 import express from 'express';
 import { register, login, getMe, uploadKYC, updateMe } from '../controllers/authController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
-import { uploadKYC as multerKYC, uploadMedia } from '../middleware/uploadMiddleware.js';
+import { uploadKYC as uploadKYCFile, uploadMedia } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -18,6 +18,6 @@ router.get('/me', verifyToken, getMe);
 router.put('/me', verifyToken, uploadMedia, updateMe);
 
 // Re-upload KYC Document
-router.post('/upload-kyc', verifyToken, multerKYC.single('kycDocument'), uploadKYC);
+router.post('/upload-kyc', verifyToken, uploadKYCFile('kycDocument'), uploadKYC);
 
 export default router;

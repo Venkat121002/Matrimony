@@ -1,36 +1,25 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
-import ProfileView from '../models/ProfileView.js';
+import {
+  createUser,
+  nextNikahId,
+  findUserByIdentifiers,
+  comparePassword,
+  checkTrialStatus,
+  updateUser,
+  getUserById,
+} from '../models/users.js';
+import { countViewsInMonth, currentMonthYear } from '../models/profileViews.js';
+import { getJwtSecret } from '../config/secrets.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
 
 // Helper to generate JWT
 const generateToken = (user) => {
-  const secret = process.env.JWT_SECRET || 'tamil_nikah_jwt_secret_key_2026';
   return jwt.sign(
     { id: user._id, role: user.role, nikahId: user.nikahId },
-    secret,
+    getJwtSecret(),
     { expiresIn: '30d' }
   );
-};
-
-// Generate strictly numerical User ID (numbers only, no TN- or alphabetic characters)
-const generateNikahId = async () => {
-  const allUsers = await User.find({}, { nikahId: 1 }).lean();
-  let maxId = 100000;
-  for (const u of allUsers) {
-    if (u.nikahId) {
-      const numOnly = parseInt(String(u.nikahId).replace(/\D/g, ''), 10);
-      if (!isNaN(numOnly) && numOnly > maxId) {
-        maxId = numOnly;
-      }
-    }
-  }
-  let nextId = maxId + 1;
-  while (await User.findOne({ nikahId: String(nextId) })) {
-    nextId += 1;
-  }
-  return String(nextId);
 };
 
 /**
@@ -144,32 +133,22 @@ export const register = async (req, res) => {
     const phoneDigits = cleanPhone.replace(/\D/g, '');
     const last10Digits = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
 
-    const phoneCheckConditions = [
-      { phone: cleanPhone },
-      { phone: cleanPhone.replace(/\s+/g, '') },
-    ];
+    const phoneVariants = [cleanPhone, cleanPhone.replace(/\s+/g, '')];
 
     if (last10Digits.length === 10) {
-      const phoneVars = [
+      phoneVariants.push(
         last10Digits,
         `+91${last10Digits}`,
         `+91 ${last10Digits}`,
         `+91-${last10Digits}`,
         `0${last10Digits}`,
-        `91${last10Digits}`,
-      ];
-      phoneVars.forEach((pv) => {
-        phoneCheckConditions.push({ phone: pv });
-        phoneCheckConditions.push({ additionalPhones: pv });
-      });
+        `91${last10Digits}`
+      );
     }
 
-    if (resolvedEmail && !resolvedEmail.endsWith('@tamilnikah.com')) {
-      phoneCheckConditions.push({ email: resolvedEmail });
-    }
-
-    const existingUser = await User.findOne({
-      $or: phoneCheckConditions,
+    const existingUser = await findUserByIdentifiers({
+      phones: phoneVariants,
+      emails: resolvedEmail && !resolvedEmail.endsWith('@tamilnikah.com') ? [resolvedEmail] : [],
     });
 
     if (existingUser) {
@@ -179,7 +158,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const nikahId = await generateNikahId();
+    const nikahId = await nextNikahId();
 
     // Process uploaded photos (up to 3)
     let photoUrls = [];
@@ -235,7 +214,7 @@ export const register = async (req, res) => {
     const resolvedDescription = (description || bio || '').trim();
 
     // Construct new user with direct active status (KYC removed entirely)
-    const newUser = new User({
+    const newUser = await createUser({
       nikahId,
       fullName: resolvedName || resolvedNameEn,
       fullNameEn: resolvedNameEn || resolvedName,
@@ -308,8 +287,6 @@ export const register = async (req, res) => {
       monthlyViewsCount: 0,
     });
 
-    await newUser.save();
-
     // Trigger transactional welcome email in background if valid email
     if (resolvedEmail && !resolvedEmail.endsWith('@tamilnikah.com')) {
       sendWelcomeEmail(newUser).catch((err) =>
@@ -324,15 +301,11 @@ export const register = async (req, res) => {
 
     const token = generateToken(newUser);
 
-    // Return sanitized user object
-    const userJson = newUser.toObject();
-    delete userJson.password;
-
     res.status(201).json({
       success: true,
       message: 'Registration successful! Your profile is now registered.',
       token,
-      user: userJson,
+      user: newUser,
     });
   } catch (err) {
     console.error('[Register Error]:', err);
@@ -362,47 +335,25 @@ export const login = async (req, res) => {
     const nikahClean = cleanId.toUpperCase().replace(/\s+/g, '');
     const digits = cleanId.replace(/\D/g, '');
 
-    const orConditions = [
-      { email: cleanId.toLowerCase() },
-      { email: idNoSpaces.toLowerCase() },
-      { nikahId: cleanId.toUpperCase() },
-      { nikahId: nikahClean },
-      { phone: cleanId },
-      { phone: idNoSpaces },
-      { additionalPhones: cleanId },
-      { additionalPhones: idNoSpaces },
-    ];
+    const emails = [cleanId.toLowerCase(), idNoSpaces.toLowerCase()];
+    const nikahIds = [cleanId.toUpperCase(), nikahClean];
+    const phones = [cleanId, idNoSpaces];
 
     // If candidate entered Nikah ID without dash (e.g. TN1025)
     if (/^[A-Za-z]{2}\d+$/.test(nikahClean)) {
-      const withHyphen = nikahClean.slice(0, 2) + '-' + nikahClean.slice(2);
-      orConditions.push({ nikahId: withHyphen });
+      nikahIds.push(nikahClean.slice(0, 2) + '-' + nikahClean.slice(2));
     }
 
     // Phone variations if digits present
     if (digits.length >= 10) {
       const last10 = digits.slice(-10);
-      const variations = [
-        last10,
-        `+91${last10}`,
-        `+91 ${last10}`,
-        `+91-${last10}`,
-        `0${last10}`,
-        `91${last10}`,
-      ];
-      variations.forEach((v) => {
-        orConditions.push({ phone: v });
-        orConditions.push({ additionalPhones: v });
-      });
+      phones.push(last10, `+91${last10}`, `+91 ${last10}`, `+91-${last10}`, `0${last10}`, `91${last10}`);
     } else if (digits.length > 0) {
-      orConditions.push({ phone: digits });
-      orConditions.push({ additionalPhones: digits });
+      phones.push(digits);
     }
 
     // Search by email, phone, additionalPhones, or Nikah ID
-    const user = await User.findOne({
-      $or: orConditions,
-    }).select('+password');
+    const user = await findUserByIdentifiers({ emails, phones, nikahIds }, { withPassword: true });
 
     if (!user) {
       return res.status(401).json({
@@ -411,7 +362,7 @@ export const login = async (req, res) => {
       });
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await comparePassword(user, password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -426,12 +377,13 @@ export const login = async (req, res) => {
       });
     }
 
-    user.checkTrialStatus();
-    await user.save();
+    const previousStatus = user.subscriptionStatus;
+    if (checkTrialStatus(user) !== previousStatus) {
+      await updateUser(user, { subscriptionStatus: user.subscriptionStatus });
+    }
 
     const token = generateToken(user);
-    const userJson = user.toObject();
-    delete userJson.password;
+    const { password: _pw, ...userJson } = user;
 
     res.json({
       success: true,
@@ -455,14 +407,9 @@ export const getMe = async (req, res) => {
   try {
     const user = req.user;
     const now = new Date();
-    const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const viewsUsed = await countViewsInMonth(user._id, currentMonthYear(now));
 
-    const viewsUsed = await ProfileView.countDocuments({
-      viewerId: user._id,
-      monthYear,
-    });
-
-    const userJson = user.toObject();
+    const userJson = { ...user };
     userJson.viewsStats = {
       viewsUsed,
       viewsRemaining: user.subscriptionStatus === 'premium' ? 9999 : Math.max(0, 5 - viewsUsed),
@@ -499,19 +446,19 @@ export const uploadKYC = async (req, res) => {
       });
     }
 
-    user.kycDocument = {
-      docType: ['Aadhaar', 'PAN', 'Passport'].includes(documentType) ? documentType : 'Aadhaar',
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      size: req.file.size,
-      uploadedAt: new Date(),
-      rejectionReason: '',
-    };
-    user.verificationStatus = 'pending';
-    user.isVerified = false;
-
-    await user.save();
+    await updateUser(user, {
+      kycDocument: {
+        docType: ['Aadhaar', 'PAN', 'Passport'].includes(documentType) ? documentType : 'Aadhaar',
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        uploadedAt: new Date(),
+        rejectionReason: '',
+      },
+      verificationStatus: 'pending',
+      isVerified: false,
+    });
 
     res.json({
       success: true,
@@ -529,7 +476,7 @@ export const uploadKYC = async (req, res) => {
 // Update current user profile
 export const updateMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await getUserById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -546,10 +493,15 @@ export const updateMe = async (req, res) => {
     ];
 
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        user[field] = req.body[field];
+      // Only plain scalars are accepted (Firestore has no schema to cast/reject objects)
+      const value = req.body[field];
+      if (value !== undefined && ['string', 'number', 'boolean'].includes(typeof value)) {
+        user[field] = value;
       }
     });
+    if (req.body.age !== undefined && !Number.isNaN(Number(req.body.age))) {
+      user.age = Number(req.body.age);
+    }
 
     // Sync location, nativePlace and district
     if (req.body.location !== undefined && req.body.location.trim()) {
@@ -640,7 +592,7 @@ export const updateMe = async (req, res) => {
       };
     }
 
-    await user.save();
+    await updateUser(user, user);
 
     res.json({
       success: true,

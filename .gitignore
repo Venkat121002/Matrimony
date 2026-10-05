@@ -40,3 +40,5 @@ backend/uploads/*
 *.sln
 *.sw?
 *.env
+# Firebase
+.firebase/

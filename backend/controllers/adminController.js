@@ -1,9 +1,17 @@
 import path from 'path';
-import fs from 'fs';
-import User from '../models/User.js';
-import Payment from '../models/Payment.js';
-import SupportTicket from '../models/SupportTicket.js';
-import { getPrivateKYCDir } from '../middleware/uploadMiddleware.js';
+import {
+  findUsers,
+  countUsers,
+  getUserById,
+  updateUser,
+  deleteUserById,
+  byCreatedDesc,
+} from '../models/users.js';
+import { totalCapturedPaise } from '../models/payments.js';
+import { countTickets } from '../models/supportTickets.js';
+import { deleteViewsForUser } from '../models/profileViews.js';
+import { streamStoredFile, deleteStoredFile } from '../middleware/uploadMiddleware.js';
+import { getAdminSecretKey, getAdminCreds } from '../config/secrets.js';
 import { sendVerificationStatusEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
 
@@ -13,25 +21,25 @@ import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
  */
 export const getDashboardStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({ role: 'user' });
-    const pendingVerifications = await User.countDocuments({ verificationStatus: 'pending' });
-    const verifiedProfiles = await User.countDocuments({ isVerified: true });
-    const activeSubscriptions = await User.countDocuments({ subscriptionStatus: 'premium' });
-    const openTickets = await SupportTicket.countDocuments({ status: 'open' });
-
-    // Aggregate total revenue from captured payments
-    const revenueAgg = await Payment.aggregate([
-      { $match: { status: 'captured' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]);
-    const totalRevenueInPaise = revenueAgg.length > 0 ? revenueAgg[0].total : 0;
+    const [totalUsers, verifiedProfiles, activeSubscriptions, openTickets, totalRevenueInPaise, pendingUsers] =
+      await Promise.all([
+        countUsers({ role: 'user' }),
+        countUsers({ isVerified: true }),
+        countUsers({ subscriptionStatus: 'premium' }),
+        countTickets('open'),
+        totalCapturedPaise(),
+        findUsers({ verificationStatus: 'pending' }),
+      ]);
+    const pendingVerifications = pendingUsers.length;
     const totalRevenueInINR = totalRevenueInPaise / 100;
 
     // Recent activities (recent registrations and pending verifications)
-    const recentPending = await User.find({ verificationStatus: 'pending' })
-      .select('nikahId fullName email phone district gender kycDocument createdAt')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const recentPending = pendingUsers
+      .sort(byCreatedDesc)
+      .slice(0, 5)
+      .map(({ _id, nikahId, fullName, email, phone, district, gender, kycDocument, createdAt }) => ({
+        _id, nikahId, fullName, email, phone, district, gender, kycDocument, createdAt,
+      }));
 
     res.json({
       success: true,
@@ -64,13 +72,17 @@ export const getVerificationQueue = async (req, res) => {
 
     const query = status === 'all' ? {} : { verificationStatus: status };
 
+    const fields = ['_id', 'nikahId', 'fullName', 'fullNameEn', 'email', 'phone', 'gender', 'age', 'district', 'state',
+      'education', 'occupation', 'kycDocument', 'verificationStatus', 'isVerified', 'createdAt'];
+    const time = (d) => d?.getTime?.() || 0;
+    const all = (await findUsers(query)).sort(
+      (a, b) => time(b.kycDocument?.uploadedAt) - time(a.kycDocument?.uploadedAt) || time(b.createdAt) - time(a.createdAt)
+    );
+    const total = all.length;
     const skip = (Number(page) - 1) * Number(limit);
-    const total = await User.countDocuments(query);
-    const users = await User.find(query)
-      .select('nikahId fullName fullNameEn email phone gender age district state education occupation kycDocument verificationStatus isVerified createdAt')
-      .sort({ 'kycDocument.uploadedAt': -1, createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
+    const users = all
+      .slice(skip, skip + Number(limit))
+      .map((u) => Object.fromEntries(fields.map((f) => [f, u[f]])));
 
     res.json({
       success: true,
@@ -94,18 +106,16 @@ export const approveVerification = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    user.isVerified = true;
-    user.verificationStatus = 'verified';
-    if (user.kycDocument) {
-      user.kycDocument.verifiedAt = new Date();
-      user.kycDocument.rejectionReason = '';
-    }
-    await user.save();
+    await updateUser(user, {
+      isVerified: true,
+      verificationStatus: 'verified',
+      kycDocument: { ...(user.kycDocument || {}), verifiedAt: new Date(), rejectionReason: '' },
+    });
 
     // Trigger transactional approval email
     sendVerificationStatusEmail(user, true).catch((err) =>
@@ -144,7 +154,7 @@ export const approveVerification = async (req, res) => {
 export const triggerMatches = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -173,17 +183,16 @@ export const rejectVerification = async (req, res) => {
     const { id } = req.params;
     const { reason = 'Document is blurry or details do not match' } = req.body;
 
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    user.isVerified = false;
-    user.verificationStatus = 'rejected';
-    if (user.kycDocument) {
-      user.kycDocument.rejectionReason = reason;
-    }
-    await user.save();
+    await updateUser(user, {
+      isVerified: false,
+      verificationStatus: 'rejected',
+      kycDocument: { ...(user.kycDocument || {}), rejectionReason: reason },
+    });
 
     // Trigger transactional rejection email
     sendVerificationStatusEmail(user, false, reason).catch((err) =>
@@ -217,29 +226,17 @@ export const viewSecureDocument = async (req, res) => {
   try {
     const { filename } = req.params;
     const sanitizedFilename = path.basename(filename); // Prevent path traversal attacks
-    const filePath = path.join(getPrivateKYCDir(), sanitizedFilename);
 
-    if (!fs.existsSync(filePath)) {
+    const found = await streamStoredFile('kyc', sanitizedFilename, res, {
+      'Content-Disposition': `inline; filename="${sanitizedFilename}"`,
+      'Cache-Control': 'private, no-store',
+    });
+    if (!found) {
       return res.status(404).json({
         success: false,
         message: 'Requested document file not found on private server storage.',
       });
     }
-
-    const ext = path.extname(sanitizedFilename).toLowerCase();
-    const contentTypeMap = {
-      '.pdf': 'application/pdf',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.webp': 'image/webp',
-    };
-
-    res.setHeader('Content-Type', contentTypeMap[ext] || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${sanitizedFilename}"`);
-
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
   } catch (err) {
     console.error('[View Document Error]:', err);
     res.status(500).json({
@@ -259,11 +256,6 @@ export const getAllUsers = async (req, res) => {
 
     const query = { role: 'user' };
 
-    if (search && search.trim()) {
-      const reg = new RegExp(search.trim(), 'i');
-      query.$or = [{ fullName: reg }, { email: reg }, { phone: reg }, { nikahId: reg }, { district: reg }];
-    }
-
     if (status === 'verified') query.isVerified = true;
     if (status === 'pending') query.verificationStatus = 'pending';
     if (status === 'rejected') query.verificationStatus = 'rejected';
@@ -273,13 +265,20 @@ export const getAllUsers = async (req, res) => {
       query.subscriptionStatus = subscription;
     }
 
+    let all = await findUsers(query);
+
+    // Partial, case-insensitive search (done in memory; Firestore has no text search)
+    if (search && search.trim()) {
+      const term = search.trim().toLowerCase();
+      all = all.filter((u) =>
+        ['fullName', 'email', 'phone', 'nikahId', 'district'].some((f) => String(u[f] ?? '').toLowerCase().includes(term))
+      );
+    }
+
+    all.sort(byCreatedDesc);
+    const total = all.length;
     const skip = (Number(page) - 1) * Number(limit);
-    const total = await User.countDocuments(query);
-    const users = await User.find(query)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
+    const users = all.slice(skip, skip + Number(limit));
 
     res.json({
       success: true,
@@ -303,12 +302,10 @@ export const toggleSuspendUser = async (req, res) => {
     const { id } = req.params;
     const { suspend, reason = '' } = req.body;
 
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    user.isSuspended = Boolean(suspend);
-    user.suspensionReason = suspend ? reason : '';
-    await user.save();
+    await updateUser(user, { isSuspended: Boolean(suspend), suspensionReason: suspend ? reason : '' });
 
     res.json({
       success: true,
@@ -329,15 +326,16 @@ export const updateUserSubscription = async (req, res) => {
     const { id } = req.params;
     const { subscriptionStatus, days = 365 } = req.body;
 
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    user.subscriptionStatus = subscriptionStatus || 'premium';
-    if (user.subscriptionStatus === 'premium') {
-      user.premiumExpiresAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
-      user.monthlyViewsCount = 0;
+    const allowed = ['free_trial', 'premium', 'expired'];
+    const patch = { subscriptionStatus: allowed.includes(subscriptionStatus) ? subscriptionStatus : 'premium' };
+    if (patch.subscriptionStatus === 'premium') {
+      patch.premiumExpiresAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+      patch.monthlyViewsCount = 0;
     }
-    await user.save();
+    await updateUser(user, patch);
 
     res.json({
       success: true,
@@ -361,23 +359,20 @@ export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
+    const user = await getUserById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Optionally delete uploaded photo files from disk
-    if (user.photos && user.photos.length > 0) {
-      user.photos.forEach((photoUrl) => {
-        try {
-          const filename = path.basename(photoUrl);
-          const filePath = path.join(process.cwd(), 'uploads', 'media', filename);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        } catch (e) {
-          // ignore file-not-found errors silently
-        }
-      });
-    }
+    // Remove the user's stored media and KYC document from Cloud Storage
+    const mediaFiles = [...(user.photos || []), user.audioClip?.url].filter(
+      (u) => typeof u === 'string' && u.startsWith('/uploads/media/')
+    );
+    await Promise.all([
+      ...mediaFiles.map((u) => deleteStoredFile('media', path.basename(u)).catch(() => {})),
+      user.kycDocument?.filename ? deleteStoredFile('kyc', user.kycDocument.filename).catch(() => {}) : null,
+      deleteViewsForUser(id).catch(() => {}),
+    ]);
 
-    await User.findByIdAndDelete(id);
+    await deleteUserById(id);
 
     res.json({
       success: true,
@@ -396,11 +391,13 @@ export const deleteUser = async (req, res) => {
 export const adminLogin = async (req, res) => {
   try {
     const { username, password, portalType } = req.body;
-    const configuredSuperUser = process.env.SUPERADMIN_USERNAME || 'superadmin';
-    const configuredSuperPass = process.env.SUPERADMIN_PASSWORD || 'Admin@TamilNikah2026!';
-    const configuredAdminUser = process.env.ADMIN_USERNAME || 'admin';
-    const configuredAdminPass = process.env.ADMIN_PASSWORD || 'Admin@TamilNikah2026!';
-    const adminSecretKey = process.env.ADMIN_SECRET_KEY || 'nikah-admin-secret-2026';
+    const {
+      superUser: configuredSuperUser,
+      superPass: configuredSuperPass,
+      adminUser: configuredAdminUser,
+      adminPass: configuredAdminPass,
+    } = getAdminCreds();
+    const adminSecretKey = getAdminSecretKey();
 
     if (!username || !password) {
       return res.status(400).json({

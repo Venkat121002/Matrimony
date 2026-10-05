@@ -1,4 +1,11 @@
-import User from '../models/User.js';
+import {
+  findUsers,
+  findUserByIdOrNikahId,
+  getUsersByIds,
+  addToShortlist,
+  removeFromShortlist,
+  byCreatedDesc,
+} from '../models/users.js';
 
 // Tamil Nadu 38 Official Districts
 export const TAMIL_NADU_DISTRICTS = [
@@ -42,9 +49,29 @@ export const TAMIL_NADU_DISTRICTS = [
   'Nilgiris',
 ];
 
+// Case-insensitive "contains" match, like the old Mongo `$regex: new RegExp(term, 'i')`
+// (but treating the user's input literally instead of as a regex pattern).
+const contains = (value, term) => String(value ?? '').toLowerCase().includes(term.toLowerCase());
+const equalsCI = (value, term) => String(value ?? '').toLowerCase() === term.toLowerCase();
+
+const lockContacts = (profile, isPremium) => {
+  if (!isPremium) {
+    profile.phone = null;
+    profile.additionalPhones = [];
+    profile.email = null;
+    profile.isContactLocked = true;
+  } else {
+    profile.isContactLocked = false;
+  }
+  return profile;
+};
+
 /**
  * Get Public Profiles (Strictly Gated to Verified Only)
- * Supports district, age range, marital status, education, and keyword queries
+ * Supports district, age range, marital status, education, and keyword queries.
+ *
+ * Firestore cannot do partial / case-insensitive matching, so only the exact filters
+ * (isVerified, gender, isOverseas) run in Firestore and the rest are applied here.
  */
 export const getProfiles = async (req, res) => {
   try {
@@ -67,88 +94,75 @@ export const getProfiles = async (req, res) => {
     } = req.query;
 
     // Strict Gatekeeping: ONLY verified, unsuspended profiles are publicly accessible
-    const query = {
-      isVerified: true,
-      isSuspended: { $ne: true },
-    };
+    const equals = { isVerified: true };
+    if (gender && gender !== 'all') {
+      if (gender === 'overseas') equals.isOverseas = true;
+      else equals.gender = gender;
+    }
+    if (isOverseas === 'true' || isOverseas === true) equals.isOverseas = true;
+
+    const filters = [(u) => u.isSuspended !== true];
 
     // 1. Search by Nikah ID
     if (searchId && searchId.trim()) {
-      query.nikahId = { $regex: new RegExp(searchId.trim(), 'i') };
-    }
-
-    // 2. Gender / Overseas Filter
-    if (gender && gender !== 'all') {
-      if (gender === 'overseas') {
-        query.isOverseas = true;
-      } else {
-        query.gender = gender;
-      }
-    }
-
-    if (isOverseas === 'true' || isOverseas === true) {
-      query.isOverseas = true;
+      const term = searchId.trim();
+      filters.push((u) => contains(u.nikahId, term));
     }
 
     // 3. District Filter (Supports Tamil and English district names)
     if (district && district !== 'all' && district !== 'அனைத்து ஊர்களும்') {
-      query.district = { $regex: new RegExp(`^${district.trim()}$`, 'i') };
+      const term = district.trim();
+      filters.push((u) => equalsCI(u.district, term));
     }
 
     // 4. State Filter
     if (state && state !== 'all') {
-      query.state = { $regex: new RegExp(state.trim(), 'i') };
+      const term = state.trim();
+      filters.push((u) => contains(u.state, term));
     }
 
-    // 5. Age Range Operator
-    if (ageMin || ageMax) {
-      query.age = {};
-      if (ageMin) query.age.$gte = Number(ageMin);
-      if (ageMax) query.age.$lte = Number(ageMax);
-    }
+    // 5. Age Range
+    if (ageMin) filters.push((u) => Number(u.age) >= Number(ageMin));
+    if (ageMax) filters.push((u) => Number(u.age) <= Number(ageMax));
 
-    // 6. Marital Status Filter
-    if (maritalStatus && maritalStatus !== 'all' && maritalStatus !== 'அனைத்தும்') {
-      query.maritalStatus = { $regex: new RegExp(maritalStatus.trim(), 'i') };
-    }
-
-    // 7. Education Filter
-    if (education && education !== 'all' && education !== 'அனைத்தும்') {
-      query.education = { $regex: new RegExp(education.trim(), 'i') };
-    }
-
-    // 8. Citizenship Filter
-    if (citizenship && citizenship !== 'all') {
-      query.citizenship = { $regex: new RegExp(citizenship.trim(), 'i') };
-    }
-
-    // 9. Workplace Filter (typable keyword)
-    if (workplace && workplace.trim()) {
-      query.workplace = { $regex: new RegExp(workplace.trim(), 'i') };
+    // 6-9. Marital status, education, citizenship, workplace keyword filters
+    const keywordFilters = {
+      maritalStatus: maritalStatus !== 'அனைத்தும்' ? maritalStatus : null,
+      education: education !== 'அனைத்தும்' ? education : null,
+      citizenship,
+      workplace,
+    };
+    for (const [field, raw] of Object.entries(keywordFilters)) {
+      if (raw && raw !== 'all' && raw.trim()) {
+        const term = raw.trim();
+        filters.push((u) => contains(u[field], term));
+      }
     }
 
     // 10. Native Location / Native Place Filter (typable keyword)
     const locTerm = (nativePlace || location || '').trim();
     if (locTerm) {
-      const reg = new RegExp(locTerm, 'i');
-      query.$or = [{ location: reg }, { nativePlace: reg }, { district: reg }];
+      filters.push((u) => contains(u.location, locTerm) || contains(u.nativePlace, locTerm) || contains(u.district, locTerm));
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const total = await User.countDocuments(query);
+    const matched = (await findUsers(equals))
+      .filter((u) => filters.every((f) => f(u)))
+      .sort(byCreatedDesc);
 
-    const profiles = await User.find(query)
-      .select('-password -kycDocument.filename')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 20);
+    const skip = (pageNum - 1) * limitNum;
+    const profiles = matched.slice(skip, skip + limitNum).map((u) => {
+      if (u.kycDocument) delete u.kycDocument.filename;
+      return u;
+    });
 
     res.json({
       success: true,
       count: profiles.length,
-      total,
-      currentPage: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      total: matched.length,
+      currentPage: pageNum,
+      totalPages: Math.ceil(matched.length / limitNum),
       profiles,
     });
   } catch (err) {
@@ -166,36 +180,25 @@ export const getProfiles = async (req, res) => {
  */
 export const getProfileById = async (req, res) => {
   try {
-    const profile = req.targetProfile;
-    const viewStats = req.viewStats;
     const viewer = req.user;
+    const profile = req.targetProfile || (await findUserByIdOrNikahId(req.params.id));
+    const viewStats = req.viewStats;
 
-    // User data is already verified & fetched by viewLimitMiddleware
-    const profileJson = profile.toObject();
-    delete profileJson.password;
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found.' });
+    }
+
+    const profileJson = { ...profile };
     delete profileJson.kycDocument; // Never leak raw document details
 
     // Strict Contact Access Gating:
     // With free tier, Contact details cannot be accessed.
     // If upgraded to premium (or admin, or viewing own profile), contact details can be accessed.
-    const isSelf =
-      viewer &&
-      (viewer._id?.toString() === profile._id?.toString() ||
-        viewer.nikahId === profile.nikahId);
+    const isSelf = viewer && (viewer._id === profile._id || viewer.nikahId === profile.nikahId);
     const isPremium =
-      viewer &&
-      (viewer.role === 'admin' ||
-        viewer.subscriptionStatus === 'premium' ||
-        isSelf);
+      viewer && (viewer.role === 'admin' || viewer.subscriptionStatus === 'premium' || isSelf);
 
-    if (!isPremium) {
-      profileJson.phone = null;
-      profileJson.additionalPhones = [];
-      profileJson.email = null;
-      profileJson.isContactLocked = true;
-    } else {
-      profileJson.isContactLocked = false;
-    }
+    lockContacts(profileJson, isPremium);
 
     res.json({
       success: true,
@@ -216,32 +219,19 @@ export const getProfileById = async (req, res) => {
  */
 export const getMyShortlist = async (req, res) => {
   try {
-    const viewer = req.user;
-    if (!viewer) {
+    const user = req.user;
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const user = await User.findById(viewer._id).populate({
-      path: 'shortlistedProfiles',
-      select: '-password -kycDocument',
-    });
-
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
-    const chosenList = user.shortlistedProfiles || [];
+    const chosenList = await getUsersByIds(user.shortlistedProfiles || []);
     const FREE_CHOSEN_LIMIT = 3;
 
     // Filter out contacts if viewer is not premium
     const sanitizedProfiles = chosenList.map((p) => {
-      const pObj = p.toObject ? p.toObject() : p;
-      if (!isPremium) {
-        pObj.phone = null;
-        pObj.additionalPhones = [];
-        pObj.email = null;
-        pObj.isContactLocked = true;
-      } else {
-        pObj.isContactLocked = false;
-      }
-      return pObj;
+      delete p.kycDocument;
+      return lockContacts(p, isPremium);
     });
 
     res.json({
@@ -266,77 +256,56 @@ export const getMyShortlist = async (req, res) => {
  */
 export const toggleShortlist = async (req, res) => {
   try {
-    const viewer = req.user;
+    const user = req.user;
     const { id } = req.params;
 
-    if (!viewer) {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Please log in to choose profiles.' });
     }
 
-    const user = await User.findById(viewer._id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    // Resolve target user
-    let target = null;
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      target = await User.findById(id);
-    } else {
-      target = await User.findOne({ nikahId: id });
-    }
-
+    const target = await findUserByIdOrNikahId(id);
     if (!target) {
       return res.status(404).json({ success: false, message: 'Profile not found.' });
     }
 
-    if (!user.shortlistedProfiles) {
-      user.shortlistedProfiles = [];
-    }
-
-    const targetIdStr = target._id.toString();
-    const existingIndex = user.shortlistedProfiles.findIndex(
-      (pid) => pid.toString() === targetIdStr
-    );
-
+    const shortlist = user.shortlistedProfiles || [];
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
     const FREE_CHOSEN_LIMIT = 3;
 
-    if (existingIndex > -1) {
+    if (shortlist.includes(target._id)) {
       // Remove from shortlist
-      user.shortlistedProfiles.splice(existingIndex, 1);
-      await user.save();
+      await removeFromShortlist(user._id, target._id);
+      const count = shortlist.length - 1;
 
       return res.json({
         success: true,
         action: 'removed',
         isShortlisted: false,
-        count: user.shortlistedProfiles.length,
+        count,
         limit: isPremium ? null : FREE_CHOSEN_LIMIT,
         message: `Profile ${target.nikahId} removed from chosen list.`,
       });
     }
 
     // Attempting to add a new profile to chosen list
-    if (!isPremium && user.shortlistedProfiles.length >= FREE_CHOSEN_LIMIT) {
+    if (!isPremium && shortlist.length >= FREE_CHOSEN_LIMIT) {
       return res.status(403).json({
         success: false,
         limitReached: true,
         limit: FREE_CHOSEN_LIMIT,
-        count: user.shortlistedProfiles.length,
+        count: shortlist.length,
         message: `With free tier, you can choose only up to ${FREE_CHOSEN_LIMIT} profiles. Upgrade to Premium to choose unlimited profiles!`,
         upgradeRequired: true,
       });
     }
 
-    user.shortlistedProfiles.push(target._id);
-    await user.save();
+    await addToShortlist(user._id, target._id);
 
     res.json({
       success: true,
       action: 'added',
       isShortlisted: true,
-      count: user.shortlistedProfiles.length,
+      count: shortlist.length + 1,
       limit: isPremium ? null : FREE_CHOSEN_LIMIT,
       message: `Profile ${target.nikahId} added to your chosen list!`,
     });
@@ -348,17 +317,20 @@ export const toggleShortlist = async (req, res) => {
   }
 };
 
-
 /**
  * Get Available Districts and Profile Counts
  */
 export const getDistrictsSummary = async (req, res) => {
   try {
-    const counts = await User.aggregate([
-      { $match: { isVerified: true, isSuspended: { $ne: true } } },
-      { $group: { _id: '$district', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]);
+    const tally = {};
+    (await findUsers({ isVerified: true }))
+      .filter((u) => u.isSuspended !== true)
+      .forEach((u) => {
+        tally[u.district] = (tally[u.district] || 0) + 1;
+      });
+    const counts = Object.entries(tally)
+      .map(([_id, count]) => ({ _id, count }))
+      .sort((a, b) => b.count - a.count);
 
     res.json({
       success: true,

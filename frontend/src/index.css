@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #ede6d8;
+    background-image: 
+      radial-gradient(#d6cabb 1px, transparent 1px),
+      radial-gradient(#d6cabb 1px, #ede6d8 1px);
+    background-size: 24px 24px;
+    background-position: 0 0, 12px 12px;
+    font-family: 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+    color: #1a1a1a;
+  }
+}
+
+/* Islamic pattern background overlay for main container */
+.islamic-pattern-bg {
+  background-color: #f7f3ea;
+  background-image: radial-gradient(#d8ccba 0.75px, transparent 0.75px), radial-gradient(#d8ccba 0.75px, #f7f3ea 0.75px);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}
+
+/* Gold Metallic Buttons */
+.btn-gold {
+  background: linear-gradient(180deg, #fce5a3 0%, #e6cb7a 28%, #c59f3f 65%, #9a761d 100%);
+  border: 1px solid #7a5814;
+  color: #241600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.75), 0 2px 4px rgba(0, 0, 0, 0.22);
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.btn-gold:hover {
+  background: linear-gradient(180deg, #fff0ba 0%, #eed588 28%, #d3ad48 65%, #a88224 100%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 3px 6px rgba(0, 0, 0, 0.28);
+}
+
+.btn-gold:active {
+  background: linear-gradient(180deg, #b58d34 0%, #d8b76b 50%, #f0d892 100%);
+  box-shadow: inset 0 2px 4px rgba(40, 25, 0, 0.4);
+  transform: translateY(1px);
+}
+
+/* Gold Badge / Ribbons */
+.badge-gold {
+  background: linear-gradient(180deg, #edd798 0%, #d6b25a 50%, #ba9237 51%, #a67c25 100%);
+  border: 1px solid #846116;
+  color: #2b1c03;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* Green Header Bar */
+.bar-green {
+  background: linear-gradient(180deg, #2b6148 0%, #1f4a36 45%, #153929 100%);
+  border-bottom: 2px solid #112d20;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Orange Embossed Button */
+.btn-orange {
+  background: linear-gradient(180deg, #ff9b26 0%, #eb6c00 50%, #c44f00 51%, #a83c00 100%);
+  border: 1px solid #7c2d00;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.25);
+  font-weight: 700;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-orange:hover {
+  background: linear-gradient(180deg, #ffa93d 0%, #f67a0e 50%, #d45906 51%, #b84403 100%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.btn-orange:active {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: translateY(1px);
+}
+
+/* Red-orange Glossy Pill Button (Menu) */
+.btn-menu-glossy {
+  background: linear-gradient(180deg, #d64800 0%, #a82400 48%, #801500 52%, #991c00 100%);
+  border: 1px solid #5a0e00;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 3px 5px rgba(0, 0, 0, 0.35);
+  font-weight: 700;
+}
+
+.btn-menu-glossy:hover {
+  background: linear-gradient(180deg, #e65509 0%, #bd2c03 48%, #961b02 52%, #ad2404 100%);
+}
+
+/* Silver Metallic Box */
+.box-silver {
+  background: linear-gradient(180deg, #f7f7f7 0%, #e2e2e2 25%, #c8c8c8 65%, #ababab 100%);
+  border: 1px solid #8e8e8e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Warm Card */
+.card-warm {
+  background-color: #faf7f0;
+  border: 1px solid #d4c8b2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Fade animation for rejected cards */
+.fade-out-card {
+  opacity: 0.15;
+  filter: grayscale(80%);
+  transform: scale(0.98);
+  pointer-events: none;
+  transition: all 0.35s ease;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #ede6d8;
+}
+::-webkit-scrollbar-thumb {
+  background: #b59f77;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8a7248;
+}

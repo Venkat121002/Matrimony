@@ -1,0 +1,30 @@
+{
+  "name": "tamil-muslim-nikkah-mern",
+  "version": "1.0.0",
+  "description": "Tamil Muslim Nikkah Matrimonial Platform - MERN Stack",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "server": "npm --prefix backend run dev",
+    "server:start": "node backend/server.js",
+    "client": "npm --prefix frontend run dev",
+    "client:build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend run build",
+    "seed": "node backend/utils/seedData.js",
+    "test:backend": "node backend/test_integration.js",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [
+    "mern",
+    "matrimony",
+    "react",
+    "express",
+    "mongodb",
+    "tamil-nikah"
+  ],
+  "author": "",
+  "license": "ISC"
+}

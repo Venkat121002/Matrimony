@@ -34,7 +34,7 @@ export default function SearchIdBox({ searchId, onSearchId }) {
             type="text"
             value={localInput}
             onChange={(e) => setLocalInput(e.target.value)}
-            placeholder="எ.கா: 43319"
+            placeholder="எ.கா: 100001"
             className="w-full px-3 py-1.5 text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
           />
           {localInput && (

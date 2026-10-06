@@ -184,9 +184,6 @@ export default function SupportModal({ isOpen, onClose, user }) {
           </button>
         </form>
 
-        <div className="bg-[#ede4d1] p-3 text-center text-xs text-[#44351b] border-t border-[#caa85d]">
-          <span>Helpline: <strong>+91 9171896625</strong> (10:00 AM - 6:00 PM)</span>
-        </div>
       </div>
     </div>
   );

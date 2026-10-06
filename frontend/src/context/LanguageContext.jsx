@@ -9,9 +9,7 @@ export const translations = {
     siteTitle: 'Tamil Muslim Nikkah',
     tagline: 'இஸ்லாமிய சகோதர, சகோதரிகளுக்கான மிகச்சிறந்த திருமண தகவல் தளம்',
     regHelp: 'பதிவு உதவி & தகவல்',
-    callBtn: 'அழைக்க: 9171896625',
     workHours: 'வேலை நேரம் : 9.00 am - 9.00 pm',
-    contactNum: 'தொடர்புக்கு: 9171896625',
     selectLanguage: 'மொழியைத் தேர்ந்தெடுக்கவும்',
 
     // Gender Radio Bar & Section
@@ -57,7 +55,7 @@ export const translations = {
     collapse: 'சுருக்குக',
     expand: 'விரிவாக்குக',
     searchIdLabel: 'Search ID (வரன் எண்):',
-    searchIdPlaceholder: 'எ.கா: 43319',
+    searchIdPlaceholder: 'எ.கா: 100001',
     maritalStatusLabel: 'திருமணம் :',
     languageLabel: 'மொழி :',
     ageRangeLabel: 'வயது வரம்பு :',
@@ -313,9 +311,7 @@ export const translations = {
     siteTitle: 'Tamil Muslim Nikkah',
     tagline: 'The Premier Matrimonial Portal for Islamic Brothers & Sisters',
     regHelp: 'Registration Help & Info',
-    callBtn: 'Call: 9171896625',
     workHours: 'Working Hours : 9.00 am - 9.00 pm',
-    contactNum: 'Contact: 9171896625',
     selectLanguage: 'Select Language',
 
     // Gender Radio Bar & Section
@@ -361,7 +357,7 @@ export const translations = {
     collapse: 'Collapse',
     expand: 'Expand',
     searchIdLabel: 'Search ID (Profile No):',
-    searchIdPlaceholder: 'e.g.: 43319',
+    searchIdPlaceholder: 'e.g.: 100001',
     maritalStatusLabel: 'Marital Status :',
     languageLabel: 'Mother Tongue :',
     ageRangeLabel: 'Age Range :',

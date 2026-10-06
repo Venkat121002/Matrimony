@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaPhoneAlt, FaWhatsapp, FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart } from 'react-icons/fa';
+import { FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact }) {
@@ -77,34 +77,6 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded bg-[#1e4a35] flex items-center justify-center text-[#eed48e] flex-shrink-0">
-                <FaPhoneAlt className="text-xs" />
-              </div>
-              <div>
-                <div className="text-[11px] text-[#eed48e] font-bold">{t('footerHelpDesk')}</div>
-                <a href="tel:9171896625" className="font-bold text-white hover:text-[#eed48e] transition">
-                  9171896625
-                </a>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded bg-[#25D366] flex items-center justify-center text-white flex-shrink-0">
-                <FaWhatsapp className="text-sm" />
-              </div>
-              <div>
-                <div className="text-[11px] text-[#eed48e] font-bold">WhatsApp:</div>
-                <a
-                  href="https://wa.me/919171896625"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-bold text-emerald-300 hover:text-emerald-200 transition"
-                >
-                  +91 91718 96625
-                </a>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -147,7 +119,7 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
       {/* Bottom Copyright Strip */}
       <div className="w-full bg-[#0a1b13] border-t border-[#caa85d]/40 py-3.5 px-4 text-center text-xs font-medium text-[#c4b598]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© 2026 Tamil Muslim Nikkah | {t('contactNum')}</p>
+          <p>© 2026 Tamil Muslim Nikkah</p>
           <div className="flex items-center gap-4 text-xs">
             <button onClick={onOpenAbout} className="hover:text-white transition">{t('footerTerms')}</button>
             <span>•</span>

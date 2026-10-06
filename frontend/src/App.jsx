@@ -19,7 +19,6 @@ import AdminDashboard from './components/AdminDashboard';
 import PaymentModal from './components/PaymentModal';
 import SupportModal from './components/SupportModal';
 import ProfileDetailsModal from './components/ProfileDetailsModal';
-import { initialProfiles } from './data/profiles';
 import {
   FaChevronDown,
   FaHeart,
@@ -43,7 +42,7 @@ export default function App() {
     }
   });
 
-  const [profiles, setProfiles] = useState(initialProfiles);
+  const [profiles, setProfiles] = useState([]);
   const [selectedGender, setSelectedGender] = useState(() => {
     try {
       const saved = localStorage.getItem('nikah_user');
@@ -156,7 +155,8 @@ export default function App() {
   // 2. Fetch profiles from backend /api/profiles with strict gating (only verified profiles returned)
   const fetchProfiles = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
+      // Pagination is client-side (visibleCount), so ask for everything; the API defaults to 20.
+      const params = new URLSearchParams({ limit: '1000' });
       const targetGender = currentUser && currentUser.gender
         ? (currentUser.gender === 'groom' ? 'bride' : (currentUser.gender === 'bride' ? 'groom' : null))
         : (filters.gender && filters.gender !== 'all' ? filters.gender : null);
@@ -185,7 +185,7 @@ export default function App() {
       const res = await fetch(`/api/profiles?${params.toString()}`);
       const data = await res.json();
 
-      if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
+      if (data.success && Array.isArray(data.profiles)) {
         // Map backend User documents to UI profile representation
         const mapped = data.profiles.map((u) => ({
           ...u,
@@ -211,7 +211,7 @@ export default function App() {
         setProfiles(mapped);
       }
     } catch (err) {
-      console.warn('[App] Backend profiles fetch failed, using local verified profiles:', err.message);
+      console.warn('[App] Backend profiles fetch failed:', err.message);
     }
   }, [filters, searchId, currentUser]);
 

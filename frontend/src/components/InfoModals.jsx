@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FaTimes, FaInfoCircle, FaPhoneAlt, FaMapMarkerAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaTimes, FaInfoCircle, FaPhoneAlt, FaMapMarkerAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export function AboutModal({ isOpen, onClose }) {
@@ -113,31 +113,6 @@ export function ContactModal({ isOpen, onClose }) {
         </div>
 
         <div className="p-5 text-xs sm:text-sm text-[#35250c] space-y-3.5">
-          <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#c5b597] shadow-sm">
-            <FaPhoneAlt className="text-[#163828] text-base" />
-            <div>
-              <div className="text-[11px] text-gray-500 font-bold">{t('modalPhoneLabel')}</div>
-              <a href="tel:9171896625" className="font-extrabold text-[#163828] text-sm hover:underline">
-                9171896625
-              </a>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#c5b597] shadow-sm">
-            <FaWhatsapp className="text-[#25D366] text-xl" />
-            <div>
-              <div className="text-[11px] text-gray-500 font-bold">{t('modalWhatsAppLabel')}</div>
-              <a
-                href="https://wa.me/919171896625"
-                target="_blank"
-                rel="noreferrer"
-                className="font-extrabold text-emerald-700 text-sm hover:underline"
-              >
-                {t('modalWhatsAppDirect')}
-              </a>
-            </div>
-          </div>
-
           <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#c5b597] shadow-sm">
             <FaMapMarkerAlt className="text-[#b85a00] text-base" />
             <div>

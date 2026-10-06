@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaWhatsapp, FaGlobe, FaChevronDown, FaUser, FaSignOutAlt } from 'react-icons/fa';
+import { FaGlobe, FaChevronDown, FaUser, FaSignOutAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Header({
@@ -231,19 +231,6 @@ export default function Header({
             )}
           </div>
 
-          {/* Contact & WhatsApp */}
-          <div className="flex items-center gap-2 font-bold">
-            <span>{t('contactNum')}</span>
-            <a
-              href="https://wa.me/919171896625"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#25D366] text-white shadow hover:scale-110 transition"
-              title="WhatsApp Chat"
-            >
-              <FaWhatsapp className="text-sm" />
-            </a>
-          </div>
         </div>
       </div>
     </header>

@@ -1,13 +1,13 @@
 import multer from 'multer';
 import path from 'path';
 import { Readable } from 'stream';
-import { bucket } from '../config/firebase.js';
+import { saveFile, streamFile, deleteFile } from '../services/fileStorage.js';
 
 /**
- * Uploads are buffered in memory by multer, then written to Cloud Storage:
+ * Uploads are buffered in memory by multer, then handed to services/fileStorage.js
+ * (Cloud Storage in production, backend/uploads/ locally):
  *   media/<file>  -> public photos / audio clips, served at /uploads/media/<file>
  *   kyc/<file>    -> private identity documents, only streamed to admins
- * The function filesystem is ephemeral, so nothing is kept on local disk.
  */
 
 // Cloud Functions has already read the request body into req.rawBody, so multer's
@@ -40,10 +40,8 @@ const mediaFilename = (file) => {
   return `${prefix}-${uniqueSuffix()}${ext}`;
 };
 
-const saveToBucket = async (folder, file, filename) => {
-  await bucket()
-    .file(`${folder}/${filename}`)
-    .save(file.buffer, { resumable: false, contentType: file.mimetype || 'application/octet-stream' });
+const saveToStorage = async (folder, file, filename) => {
+  await saveFile(folder, filename, file.buffer, file.mimetype);
   file.filename = filename;
   delete file.buffer;
 };
@@ -53,7 +51,7 @@ const persist = (folder, nameFor) => async (req, res, next) => {
   try {
     const files = req.file ? [req.file] : Object.values(req.files || {}).flat();
     await Promise.all(
-      files.map((f) => saveToBucket(f.fieldname === 'kycDocument' ? 'kyc' : folder, f, (f.fieldname === 'kycDocument' ? kycFilename : nameFor)(f)))
+      files.map((f) => saveToStorage(f.fieldname === 'kycDocument' ? 'kyc' : folder, f, (f.fieldname === 'kycDocument' ? kycFilename : nameFor)(f)))
     );
     next();
   } catch (err) {
@@ -109,19 +107,7 @@ export const uploadMedia = [
   persist('media', mediaFilename),
 ];
 
-// Stream a stored object to the response; returns false if it does not exist.
-export const streamStoredFile = async (folder, filename, res, headers = {}) => {
-  const file = bucket().file(`${folder}/${path.basename(filename)}`);
-  const [exists] = await file.exists();
-  if (!exists) return false;
-  const [meta] = await file.getMetadata();
-  res.setHeader('Content-Type', meta.contentType || 'application/octet-stream');
-  for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
-  await new Promise((resolve, reject) => {
-    file.createReadStream().on('error', reject).on('end', resolve).pipe(res);
-  });
-  return true;
-};
+// Stream a stored file to the response; returns false if it does not exist.
+export const streamStoredFile = (folder, filename, res, headers = {}) => streamFile(folder, filename, res, headers);
 
-export const deleteStoredFile = (folder, filename) =>
-  bucket().file(`${folder}/${path.basename(filename)}`).delete({ ignoreNotFound: true });
+export const deleteStoredFile = (folder, filename) => deleteFile(folder, filename);

@@ -55,10 +55,7 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
       const isScriptLoaded = await loadRazorpayScript();
 
       if (!isScriptLoaded || !window.Razorpay) {
-        // Fallback for sandboxed offline testing environments
-        console.warn('Razorpay checkout script not available. Proceeding with safe sandbox simulation...');
-        await simulateDirectPayment(orderData.orderId, token);
-        return;
+        throw new Error('Could not load the Razorpay payment window. Please check your connection and try again.');
       }
 
       // 3. Configure Razorpay Options
@@ -119,36 +116,6 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
     } catch (err) {
       console.error('[Payment Error]:', err);
       setErrorMsg(err.message || 'Payment failed to initiate.');
-      setLoading(false);
-    }
-  };
-
-  // Safe simulation fallback for development when Razorpay keys are in test mode
-  const simulateDirectPayment = async (orderId, token) => {
-    try {
-      const verifyRes = await fetch('/api/payment/verify-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          razorpayOrderId: orderId,
-          razorpayPaymentId: `pay_demo_${Date.now()}`,
-          razorpaySignature: 'demo_verified_signature',
-        }),
-      });
-
-      const data = await verifyRes.json();
-      if (data.success) {
-        onPaymentSuccess(data);
-        onClose();
-      } else {
-        setErrorMsg(data.message);
-      }
-    } catch (e) {
-      setErrorMsg('Simulation error');
-    } finally {
       setLoading(false);
     }
   };
@@ -285,36 +252,6 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
                 : (isTamil ? '₹999 செலுத்தி உடனடியாக பிரீமியம் பெறுக (Razorpay)' : 'Pay ₹999 with Razorpay & Upgrade')}
             </span>
           </button>
-
-          {/* Simulated Payment Button for Testing / Demo */}
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={async () => {
-                const token = localStorage.getItem('nikah_token');
-                if (!token) {
-                  setErrorMsg('Please log in first.');
-                  return;
-                }
-                setLoading(true);
-                setErrorMsg('');
-                try {
-                  const orderRes = await fetch('/api/payment/create-order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ planId: 'annual_premium' }),
-                  });
-                  const orderData = await orderRes.json();
-                  await simulateDirectPayment(orderData.orderId || `ord_${Date.now()}`, token);
-                } catch (e) {
-                  await simulateDirectPayment(`ord_${Date.now()}`, token);
-                }
-              }}
-              className="text-[11px] text-gray-500 hover:text-[#8a6d2f] underline cursor-pointer"
-            >
-              {isTamil ? '⚡ டெஸ்ட் மோட்: கட்டணம் இல்லாமல் சோதனை செய்ய (Dev Simulation)' : '⚡ Test Mode: Instant Upgrade Simulation (For Development Testing)'}
-            </button>
-          </div>
 
           {/* Secure Payment Footer Badges */}
           <div className="flex items-center justify-center gap-4 text-[11px] text-gray-500 pt-1">

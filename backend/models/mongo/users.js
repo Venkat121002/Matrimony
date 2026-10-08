@@ -51,18 +51,48 @@ export const findUserByNikahId = async (nikahId) => plain(await User.findOne({ n
 export const findUserByIdOrNikahId = async (idOrNikahId) =>
   (await getUserById(idOrNikahId)) || (await findUserByNikahId(idOrNikahId));
 
+const escapeRegex = (s) => String(s).replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+
 export const findUserByIdentifiers = async (
   { emails = [], phones = [], nikahIds = [] },
   { withPassword = false } = {}
 ) => {
   const uniq = (arr) => [...new Set(arr.filter(Boolean))];
   const or = [];
-  if (emails.length) or.push({ email: { $in: uniq(emails) } });
-  if (nikahIds.length) or.push({ nikahId: { $in: uniq(nikahIds) } });
-  if (phones.length) {
-    or.push({ phone: { $in: uniq(phones) } });
-    or.push({ additionalPhones: { $in: uniq(phones) } });
+
+  const cleanEmails = uniq(emails);
+  if (cleanEmails.length) {
+    or.push({ email: { $in: cleanEmails } });
+    cleanEmails.forEach((e) => {
+      or.push({ email: new RegExp(`^${escapeRegex(e.trim())}$`, 'i') });
+    });
   }
+
+  const cleanNikahIds = uniq(nikahIds);
+  if (cleanNikahIds.length) {
+    or.push({ nikahId: { $in: cleanNikahIds } });
+    cleanNikahIds.forEach((n) => {
+      or.push({ nikahId: new RegExp(`^${escapeRegex(n.trim())}$`, 'i') });
+    });
+  }
+
+  const cleanPhones = uniq(phones);
+  if (cleanPhones.length) {
+    or.push({ phone: { $in: cleanPhones } });
+    or.push({ additionalPhones: { $in: cleanPhones } });
+
+    // Match core digit patterns for phones (tolerates spaces, +, dashes)
+    for (const p of cleanPhones) {
+      const d = String(p).replace(/\D/g, '');
+      if (d.length >= 7) {
+        const core = d.length > 10 ? d.slice(-10) : d;
+        const pattern = new RegExp(core.split('').join('\\D*'), 'i');
+        or.push({ phone: pattern });
+        or.push({ additionalPhones: pattern });
+      }
+    }
+  }
+
   if (!or.length) return null;
   const q = User.findOne({ $or: or });
   if (withPassword) q.select('+password');
@@ -70,6 +100,39 @@ export const findUserByIdentifiers = async (
 };
 
 export const comparePassword = (user, entered) => bcrypt.compare(entered, user.password || '');
+
+export const setResetOtp = async (userId, code, expiresAt) => {
+  await User.updateOne(
+    { _id: userId },
+    { $set: { resetOtp: { code, expiresAt, verified: false }, updatedAt: new Date() } }
+  );
+};
+
+export const verifyResetOtp = async (userId, code) => {
+  const user = await User.findById(userId);
+  if (!user || !user.resetOtp || !user.resetOtp.code) return false;
+  if (String(user.resetOtp.code).trim() !== String(code).trim()) return false;
+  if (user.resetOtp.expiresAt && new Date(user.resetOtp.expiresAt) < new Date()) return false;
+  await User.updateOne({ _id: userId }, { $set: { 'resetOtp.verified': true, updatedAt: new Date() } });
+  return true;
+};
+
+export const checkResetOtpVerified = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user || !user.resetOtp) return false;
+  if (!user.resetOtp.verified) return false;
+  if (user.resetOtp.expiresAt && new Date(user.resetOtp.expiresAt) < new Date()) return false;
+  return true;
+};
+
+export const setUserPassword = async (userId, newPassword) => {
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  await User.updateOne(
+    { _id: userId },
+    { $set: { password: hashedPassword, resetOtp: { code: '', expiresAt: null, verified: false }, updatedAt: new Date() } }
+  );
+};
 
 export const updateUser = async (user, patch) => {
   const data = toSet(patch);

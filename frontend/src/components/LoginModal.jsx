@@ -8,6 +8,7 @@ export default function LoginModal({
   onLoginSuccess,
   onOpenRegister,
   onOpenVideo,
+  onForgotPassword,
   initialUsername = '',
 }) {
   const { t, isTamil } = useLanguage();
@@ -168,6 +169,20 @@ export default function LoginModal({
               />
               <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
             </div>
+            {onForgotPassword && (
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onForgotPassword();
+                  }}
+                  className="text-xs text-[#1a4387] hover:underline font-semibold"
+                >
+                  {t('forgotPassword')}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="pt-2 flex justify-center">
@@ -180,21 +195,6 @@ export default function LoginModal({
           </div>
 
           <div className="pt-2 text-center space-y-2 text-xs border-t border-[#e2d5bd]">
-            <div>
-              <span className="text-gray-600">{t('howToLogin')}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenVideo();
-                }}
-                className="text-[#1a4387] hover:underline font-bold inline-flex items-center gap-1"
-              >
-                <FaPlayCircle className="text-red-600 text-xs" />
-                <span>{t('videoGuide')}</span>
-              </button>
-            </div>
-
             <div>
               <span className="text-gray-600">{t('noLoginId')} </span>
               <button

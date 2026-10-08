@@ -87,11 +87,21 @@ export const notifyMatchingPremiumUsers = async (newProfile) => {
       // Send notification if user has an email
       if (premiumUser.email) {
         try {
-          await sendMatchingProfileRecommendationEmail(premiumUser, newProfile);
+          const mailResult = await sendMatchingProfileRecommendationEmail(premiumUser, newProfile);
+          if (!mailResult?.success && !mailResult?.mocked) {
+            console.error(`[Matching Service Error] Failed sending to ${mailResult?.recipient || premiumUser.email}:`, mailResult?.error);
+            return {
+              email: mailResult?.recipient || premiumUser.email,
+              nikahId: premiumUser.nikahId,
+              sent: false,
+              error: mailResult?.error,
+            };
+          }
+          const recipient = mailResult?.recipient || premiumUser.email;
           console.log(
-            `[Matching Service] Dispatched match recommendation to Premium ${premiumUser.gender}: ${premiumUser.email} (ID: ${premiumUser.nikahId})`
+            `[Matching Service] Dispatched match recommendation to Premium ${premiumUser.gender}: ${recipient} (ID: ${premiumUser.nikahId})`
           );
-          return { email: premiumUser.email, nikahId: premiumUser.nikahId, sent: true };
+          return { email: recipient, nikahId: premiumUser.nikahId, sent: true };
         } catch (err) {
           console.error(`[Matching Service Error] Failed sending to ${premiumUser.email}:`, err.message);
           return { email: premiumUser.email, nikahId: premiumUser.nikahId, sent: false, error: err.message };

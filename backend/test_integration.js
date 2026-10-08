@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
 
@@ -213,9 +215,9 @@ async function runTests() {
     assert(false, `Chosen profiles limit test failed: ${e.message}`);
   }
 
-  // 8. Razorpay Payment: Create Order & Upgrade to Premium
+  // 8. Cashfree Payment: Create Order & Upgrade to Premium
   try {
-    console.log(`\nTesting Razorpay Order Creation and Premium Upgrade...`);
+    console.log(`\nTesting Cashfree Order Creation and Premium Upgrade...`);
     const orderRes = await fetch(`${API_BASE}/payment/create-order`, {
       method: 'POST',
       headers: {
@@ -225,7 +227,7 @@ async function runTests() {
       body: JSON.stringify({ planId: 'annual_premium' }),
     }).then((r) => r.json());
 
-    assert(orderRes.success === true, 'Razorpay order created successfully');
+    assert(orderRes.success === true, 'Cashfree order created successfully');
     assert(orderRes.amount === 99900, 'Order amount is ₹999 (99900 paise)');
 
     // Verify payment and upgrade user

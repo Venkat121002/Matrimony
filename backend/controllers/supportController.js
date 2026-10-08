@@ -3,6 +3,8 @@ import {
   findTickets,
   getTicketById,
   updateTicket as patchTicket,
+  deleteTicketById,
+  deleteResolvedTickets as removeResolvedTickets,
 } from '../models/supportTickets.js';
 
 export const createTicket = async (req, res) => {
@@ -83,6 +85,50 @@ export const updateTicket = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update ticket.',
+    });
+  }
+};
+
+export const deleteTicket = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ticket = await getTicketById(id);
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket not found.' });
+    }
+
+    const deleted = await deleteTicketById(id);
+    if (!deleted) {
+      return res.status(400).json({ success: false, message: 'Could not delete ticket.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Support query removed successfully.',
+      ticketId: id,
+    });
+  } catch (err) {
+    console.error('[Delete Ticket Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete support ticket.',
+    });
+  }
+};
+
+export const clearResolvedTickets = async (req, res) => {
+  try {
+    const count = await removeResolvedTickets();
+    res.json({
+      success: true,
+      message: `${count} resolved query(ies) removed successfully.`,
+      deletedCount: count,
+    });
+  } catch (err) {
+    console.error('[Clear Resolved Tickets Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear resolved tickets.',
     });
   }
 };

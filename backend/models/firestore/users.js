@@ -21,6 +21,7 @@ const stripPassword = (user) => {
 // Same defaults the Mongoose schema used to apply.
 const userDefaults = () => ({
   fullNameEn: '',
+  countryCode: '+91',
   additionalPhones: [],
   maritalStatus: 'திருமணம் ஆகாதவர்',
   education: 'பட்டதாரி',
@@ -36,6 +37,29 @@ const userDefaults = () => ({
   nativePlace: '',
   currentAddress: '',
   livingYears: '5 ஆண்டுகள்',
+  workingYearsInTitleLocation: '',
+  familyDetails: {
+    fatherName: '',
+    fatherAge: 55,
+    fatherOccupation: '',
+    motherName: '',
+    motherAge: 50,
+    motherOccupation: '',
+    siblingsCount: 0,
+    siblings: [],
+    siblingDetails: {
+      elderSister: 'இல்லை',
+      youngerSister: 'இல்லை',
+      elderBrother: 'இல்லை',
+      youngerBrother: 'இல்லை',
+    },
+  },
+  workPreferences: {
+    brideWorkStatus: 'will_work',
+    groomWorkPreference: 'need_working',
+    preferenceOption: '',
+    preferenceText: '',
+  },
   location: '',
   property: 'சொந்த வீடு',
   bio: '',
@@ -69,6 +93,8 @@ const userDefaults = () => ({
   isSuspended: false,
   suspensionReason: '',
   avatar: '',
+  isFeatured: false,
+  featuredUntil: null,
 });
 
 // Sequential numeric Nikah IDs (100001, 100002, ...) via a transactional counter.
@@ -138,6 +164,49 @@ export const findUserByIdentifiers = async (
 };
 
 export const comparePassword = (user, entered) => bcrypt.compare(entered, user.password || '');
+
+export const setResetOtp = async (userId, code, expiresAt) => {
+  await usersCol.doc(String(userId)).update({
+    resetOtp: { code, expiresAt, verified: false },
+    updatedAt: new Date(),
+  });
+};
+
+export const verifyResetOtp = async (userId, code) => {
+  const snap = await usersCol.doc(String(userId)).get();
+  if (!snap.exists) return false;
+  const user = snap.data();
+  if (!user || !user.resetOtp || !user.resetOtp.code) return false;
+  if (String(user.resetOtp.code).trim() !== String(code).trim()) return false;
+  const exp = user.resetOtp.expiresAt?.toDate ? user.resetOtp.expiresAt.toDate() : new Date(user.resetOtp.expiresAt);
+  if (exp && exp < new Date()) return false;
+  await usersCol.doc(String(userId)).update({
+    'resetOtp.verified': true,
+    updatedAt: new Date(),
+  });
+  return true;
+};
+
+export const checkResetOtpVerified = async (userId) => {
+  const snap = await usersCol.doc(String(userId)).get();
+  if (!snap.exists) return false;
+  const user = snap.data();
+  if (!user || !user.resetOtp) return false;
+  if (!user.resetOtp.verified) return false;
+  const exp = user.resetOtp.expiresAt?.toDate ? user.resetOtp.expiresAt.toDate() : new Date(user.resetOtp.expiresAt);
+  if (exp && exp < new Date()) return false;
+  return true;
+};
+
+export const setUserPassword = async (userId, newPassword) => {
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  await usersCol.doc(String(userId)).update({
+    password: hashedPassword,
+    resetOtp: { code: '', expiresAt: null, verified: false },
+    updatedAt: new Date(),
+  });
+};
 
 // Apply a partial update and mirror it onto the in-memory object.
 export const updateUser = async (user, patch) => {

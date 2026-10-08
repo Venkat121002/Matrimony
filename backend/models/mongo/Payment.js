@@ -8,10 +8,26 @@ const paymentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    orderId: {
+      type: String,
+      index: true,
+    },
+    cashfreeOrderId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    cashfreePaymentId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    paymentSessionId: {
+      type: String,
+    },
     razorpayOrderId: {
       type: String,
-      required: true,
-      unique: true,
+      sparse: true,
       index: true,
     },
     razorpayPaymentId: {
@@ -21,6 +37,10 @@ const paymentSchema = new mongoose.Schema(
     },
     razorpaySignature: {
       type: String,
+    },
+    gateway: {
+      type: String,
+      default: 'cashfree',
     },
     amount: {
       type: Number,

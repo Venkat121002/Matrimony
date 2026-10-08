@@ -102,16 +102,16 @@ export default function TamilInput({
   return (
     <div className="space-y-1">
       {/* Label and Tamil Input Switcher Bar */}
-      <div className="flex items-center justify-between gap-1">
-        <label className="block text-xs font-bold text-[#44351b]">
+      <div className="flex items-end justify-between gap-1 min-h-[38px] sm:min-h-[42px] pb-1">
+        <label className="block text-xs font-bold text-[#44351b] leading-tight">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
 
-        <div className="flex items-center gap-1.5 text-[11px]">
+        <div className="flex items-center gap-1 text-[10px] sm:text-[11px] flex-shrink-0 self-end">
           {/* Mode Switcher */}
           {lockTamil || !showModeSwitcher ? (
             <span
-              className="px-2 py-0.5 rounded font-bold text-[11px] bg-[#163828] text-[#edd48e] border border-[#163828] flex items-center gap-1 cursor-default select-none"
+              className="px-1.5 py-0.5 rounded font-bold text-[10px] sm:text-[11px] bg-[#163828] text-[#edd48e] border border-[#163828] flex items-center gap-1 cursor-default select-none whitespace-nowrap"
               title="Locked in Tamil"
             >
               <FaLanguage className="text-xs" />
@@ -121,7 +121,7 @@ export default function TamilInput({
             <button
               type="button"
               onClick={() => setIsTamilMode(!isTamilMode)}
-              className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 border ${
+              className={`px-1.5 py-0.5 rounded font-bold transition flex items-center gap-1 border whitespace-nowrap text-[10px] sm:text-[11px] ${
                 isTamilMode
                   ? 'bg-[#163828] text-[#edd48e] border-[#163828]'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
@@ -137,7 +137,7 @@ export default function TamilInput({
           <button
             type="button"
             onClick={() => setShowKeyboard(!showKeyboard)}
-            className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 border ${
+            className={`px-1.5 py-0.5 rounded font-bold transition flex items-center gap-1 border whitespace-nowrap text-[10px] sm:text-[11px] ${
               showKeyboard
                 ? 'bg-[#8a6d2f] text-white border-[#8a6d2f]'
                 : 'bg-[#f4ebd0] text-[#4e3c1a] border-[#caa85d] hover:bg-[#edd48e]'
@@ -163,7 +163,7 @@ export default function TamilInput({
             maxLength={maxLength}
             placeholder={placeholder}
             required={required}
-            className={`w-full px-3 py-2 text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner ${className}`}
+            className={`w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner ${className}`}
             {...rest}
           />
         ) : (
@@ -178,7 +178,7 @@ export default function TamilInput({
             required={required}
             maxLength={maxLength}
             list={list}
-            className={`w-full px-3 py-1.5 text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner ${className}`}
+            className={`w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[38px] sm:h-[40px] ${className}`}
             {...rest}
           />
         )}

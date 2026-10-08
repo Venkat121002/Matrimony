@@ -54,6 +54,12 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
 
       {/* Form Body */}
       <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        {errorMsg && (
+          <div className="p-2 bg-red-100 border border-red-300 text-red-700 rounded text-xs font-bold text-center">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Username Field */}
         <div>
           <label className="block text-xs font-bold text-[#44351b] mb-1">
@@ -63,7 +69,6 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder={t('phonePlaceholder')}
             className="w-full px-3 py-1.5 text-sm bg-white border border-[#c5b597] rounded focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-800 placeholder-gray-400 shadow-inner"
             required
           />
@@ -87,9 +92,10 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
         <div className="pt-1 flex justify-center">
           <button
             type="submit"
-            className="btn-gold px-8 py-1.5 rounded-md text-sm font-bold shadow transition-all duration-150"
+            disabled={loading}
+            className="btn-gold px-8 py-1.5 rounded-md text-sm font-bold shadow transition-all duration-150 disabled:opacity-50"
           >
-            {t('loginBtn')}
+            {loading ? (isTamil ? 'சரிபார்க்கிறது...' : 'Logging in...') : t('loginBtn')}
           </button>
         </div>
 
@@ -102,18 +108,6 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
               className="text-[#1a4387] hover:underline font-semibold"
             >
               {t('forgotPassword')}
-            </button>
-          </div>
-
-          <div>
-            <span className="text-[#3b2d16] font-medium">{t('howToLogin')}</span>
-            <button
-              type="button"
-              onClick={onOpenVideo}
-              className="text-[#1a4387] hover:text-[#0c2f6d] font-bold inline-flex items-center gap-1 underline"
-            >
-              <FaPlayCircle className="text-red-600 text-xs" />
-              <span>{t('videoGuide')}</span>
             </button>
           </div>
 

@@ -9,9 +9,10 @@ const paymentsCol = db.collection('payments');
 
 export const createPayment = async (fields) => {
   const now = new Date();
-  const data = { currency: 'INR', status: 'created', planName: 'Premium Annual Membership', ...fields, createdAt: now, updatedAt: now };
-  await paymentsCol.doc(fields.razorpayOrderId).set(data);
-  return { _id: fields.razorpayOrderId, ...data };
+  const orderId = fields.cashfreeOrderId || fields.orderId || fields.razorpayOrderId;
+  const data = { currency: 'INR', status: 'created', planName: 'Premium Annual Membership', gateway: 'cashfree', ...fields, orderId, createdAt: now, updatedAt: now };
+  await paymentsCol.doc(orderId).set(data);
+  return { _id: orderId, ...data };
 };
 
 export const getPaymentByOrderId = async (orderId) => {

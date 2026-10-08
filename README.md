@@ -116,3 +116,13 @@ npm run dev      # Starts on http://localhost:5173
 | `RAZORPAY_KEY_ID` | Razorpay Merchant Key ID |
 | `RAZORPAY_KEY_SECRET` | Razorpay Merchant Key Secret |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP Email server credentials |
+| `SMTP_USER` / `SMTP_PASS` | SMTP sender username and password (use an app password for Gmail) |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASS` | Alternate SMTP variable names |
+| `EMAIL_FROM` | Sender name and address shown on outgoing mail |
+| `EMAIL_TEST_RECIPIENT` | Optional inbox that receives all application emails while testing |
+
+For local email testing, set `EMAIL_TEST_RECIPIENT=guhanguhan2121@gmail.com` in `backend/.env.local`.
+Profile-match recommendations and other non-password-reset emails will be redirected to that inbox
+while the setting is present. Password-reset OTPs are always sent only to the email stored on the
+matched profile. Configure working SMTP credentials as well; without them the backend only logs a
+development mock and no email is delivered.

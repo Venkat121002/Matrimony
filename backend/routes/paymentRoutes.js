@@ -4,10 +4,10 @@ import { verifyToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Generate Razorpay Order
+// Generate Cashfree Order
 router.post('/create-order', verifyToken, createOrder);
 
-// Verify Razorpay Client Signature
+// Verify Cashfree Payment
 router.post('/verify-payment', verifyToken, verifyPayment);
 
 export default router;

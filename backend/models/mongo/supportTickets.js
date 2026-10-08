@@ -21,3 +21,14 @@ export const updateTicket = async (ticket, patch) => {
   Object.assign(ticket, data);
   return ticket;
 };
+
+export const deleteTicketById = async (id) => {
+  if (!isValidId(id)) return false;
+  const res = await SupportTicket.deleteOne({ _id: id });
+  return res.deletedCount > 0;
+};
+
+export const deleteResolvedTickets = async () => {
+  const res = await SupportTicket.deleteMany({ status: 'resolved' });
+  return res.deletedCount;
+};

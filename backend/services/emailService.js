@@ -2,10 +2,10 @@ import nodemailer from 'nodemailer';
 
 // Create nodemailer transporter with configurable SMTP or fallback
 const createTransporter = () => {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT || 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+  const port = process.env.SMTP_PORT || process.env.EMAIL_PORT || 587;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
 
   if (host && user && pass) {
     return nodemailer.createTransport({
@@ -16,32 +16,45 @@ const createTransporter = () => {
     });
   }
 
+  if (user && pass && !host) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+    });
+  }
+
   // Fallback: Test ethereal or console logger transport
   return null;
 };
 
 const transporter = createTransporter();
 
-const sendMailHelper = async ({ to, subject, html, text }) => {
+const sendMailHelper = async ({ to, subject, html, text, useTestRecipient = true }) => {
   const from = process.env.EMAIL_FROM || '"Tamil Muslim Nikkah" <no-reply@tamilnikah.com>';
+  const testRecipient = useTestRecipient ? process.env.EMAIL_TEST_RECIPIENT?.trim() : '';
+  const recipient = testRecipient || to;
+
+  if (testRecipient && testRecipient !== to) {
+    console.info(`[Email] Test recipient override active: ${to} -> ${testRecipient}`);
+  }
 
   if (transporter) {
     try {
-      const info = await transporter.sendMail({ from, to, subject, text, html });
-      console.log(`[Email] Sent to ${to}: ${info.messageId}`);
-      return { success: true, messageId: info.messageId };
+      const info = await transporter.sendMail({ from, to: recipient, subject, text, html });
+      console.log(`[Email] Sent to ${recipient}: ${info.messageId}`);
+      return { success: true, messageId: info.messageId, recipient };
     } catch (err) {
-      console.error(`[Email Error] Failed to send email to ${to}:`, err.message);
-      return { success: false, error: err.message };
+      console.error(`[Email Error] Failed to send email to ${recipient}:`, err.message);
+      return { success: false, error: err.message, recipient };
     }
   } else {
     // In development or when SMTP is not configured, log nicely
     console.log('\n=================== 📧 EMAIL NOTIFICATION (DEV MOCK) ===================');
-    console.log(`To: ${to}`);
+    console.log(`To: ${recipient}`);
     console.log(`Subject: ${subject}`);
     console.log(`Summary: ${text || subject}`);
     console.log('=========================================================================\n');
-    return { success: true, mocked: true };
+    return { success: true, mocked: true, recipient };
   }
 };
 
@@ -171,11 +184,11 @@ export const sendPaymentReceiptEmail = async (user, payment) => {
           </tr>
           <tr style="border-bottom: 1px solid #dfd2ba;">
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Order ID</td>
-            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.razorpayOrderId}</td>
+            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.orderId || payment.cashfreeOrderId || payment.razorpayOrderId}</td>
           </tr>
           <tr style="border-bottom: 1px solid #dfd2ba;">
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Payment ID</td>
-            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.razorpayPaymentId || 'N/A'}</td>
+            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.paymentId || payment.cashfreePaymentId || payment.razorpayPaymentId || 'N/A'}</td>
           </tr>
           <tr>
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Benefits</td>
@@ -314,3 +327,48 @@ Login to your account to view complete details and family background.`;
   return sendMailHelper({ to: premiumUser.email, subject, html, text });
 };
 
+/**
+ * 5. Password Reset Verification OTP Email
+ */
+export const sendPasswordResetOtpEmail = async (user, otp) => {
+  if (!user || !user.email) return { success: false, error: 'No email address on profile' };
+
+  const subject = `Your Tamil Muslim Nikkah Password Reset OTP: ${otp}`;
+  const text = `Assalamu Alaikum ${user.fullName || 'User'},\n\nYour 6-digit OTP code to reset your password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request this, please ignore this email or contact support.\n\n— Tamil Muslim Nikkah Matrimonial`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf7ef; border: 2px solid #caa85d; border-radius: 12px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #163828, #21543c); padding: 25px; text-align: center; border-bottom: 3px solid #caa85d;">
+        <h1 style="color: #ecd08c; margin: 0; font-size: 24px;">தமிழ் முஸ்லிம் நிக்காஹ்</h1>
+        <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px;">Password Reset Verification (கடவுச்சொல் மீட்பு)</p>
+      </div>
+      <div style="padding: 30px; color: #2e261a; line-height: 1.6;">
+        <h2 style="color: #163828; margin-top: 0;">Assalamu Alaikum, ${user.fullName || 'User'}!</h2>
+        <p>A request was received to reset the password for your Tamil Muslim Nikkah profile (ID: <strong>${user.nikahId || 'N/A'}</strong>).</p>
+
+        <div style="background-color: #f5efe1; border: 2px dashed #caa85d; border-radius: 10px; padding: 20px; text-align: center; margin: 25px 0;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: #6e5927; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+            உங்கள் 6-இலக்க OTP சரிபார்ப்புக் குறியீடு:
+          </p>
+          <div style="font-size: 36px; font-weight: 900; color: #163828; letter-spacing: 8px; font-family: monospace;">
+            ${otp}
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px; color: #88785c;">
+            (This OTP is valid for 10 minutes only • 10 நிமிடங்களுக்கு மட்டுமே செல்லுபடியாகும்)
+          </p>
+        </div>
+
+        <p style="font-size: 13px; color: #555;">
+          For your security, never share this OTP with anyone. If you did not initiate this request, your account is safe and you can safely ignore this email.
+        </p>
+        <p style="margin-top: 25px; font-size: 13px; color: #665b49; border-top: 1px solid #e0d4be; padding-top: 15px;">
+          Need support? Reach out via WhatsApp or call <strong>+91 9171896625</strong>.
+        </p>
+      </div>
+      <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
+        © ${new Date().getFullYear()} Tamil Muslim Nikkah. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  return sendMailHelper({ to: user.email, subject, html, text, useTestRecipient: false });
+};

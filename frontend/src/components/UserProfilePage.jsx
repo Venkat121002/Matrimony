@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import ProfileDetailsModal from './ProfileDetailsModal';
 import EditProfileForm from './EditProfileForm';
 import DefaultAvatar from './DefaultAvatar';
 import PaymentModal from './PaymentModal';
+import FeatureProfileModal from './FeatureProfileModal';
 import Toast from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -12,10 +13,12 @@ import {
   FaHeart,
   FaEdit,
   FaChevronLeft,
+  FaChevronRight,
   FaPhoneAlt,
   FaGraduationCap,
   FaCheckCircle,
   FaCrown,
+  FaStar,
   FaLock,
   FaBolt,
   FaEnvelopeOpenText,
@@ -38,12 +41,38 @@ export default function UserProfilePage() {
   const [shortlistedProfiles, setShortlistedProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [subscriptionSettings, setSubscriptionSettings] = useState(null);
+  const [shortlistPage, setShortlistPage] = useState(1);
+
+  const editFormRef = useRef(null);
+
+  // Smoothly scroll down to the start of the edit profile form when opened
+  useEffect(() => {
+    if (isEditing && editFormRef.current) {
+      const timer = setTimeout(() => {
+        editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    fetch('/api/profiles/subscription-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings) {
+          setSubscriptionSettings(data.settings);
+        }
+      })
+      .catch((err) => console.warn(err));
+  }, []);
 
   // Modals state
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedDetailProfile, setSelectedDetailProfile] = useState(null);
   const [detailViewStats, setDetailViewStats] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isFeatureMarqueeOpen, setIsFeatureMarqueeOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'info') => {
@@ -194,6 +223,46 @@ export default function UserProfilePage() {
     showToast(isTamil ? 'வரன் தேர்விலிருந்து நீக்கப்பட்டது' : 'Profile removed from chosen list', 'info');
   };
 
+  const handleToggleShortlist = async (profileOrId) => {
+    const id = typeof profileOrId === 'object' && profileOrId !== null
+      ? (profileOrId.nikahId || profileOrId.id || profileOrId._id)
+      : profileOrId;
+    if (!id) return;
+
+    const exists = shortlistedProfiles.some((p) => p.nikahId === id || p.id === id || p._id === id);
+    if (exists) {
+      handleRemoveShortlist(id);
+    } else {
+      const isPremium = currentUser?.subscriptionStatus === 'premium' || currentUser?.role === 'admin';
+      if (!isPremium && shortlistedProfiles.length >= freeChosenLimit) {
+        showToast(
+          isTamil
+            ? `இலவச கணக்கில் அதிகபட்சம் ${freeChosenLimit} வரன்களை மட்டுமே தேர்வு செய்ய முடியும்.`
+            : `Free tier limit: maximum ${freeChosenLimit} chosen profiles.`,
+          'warning'
+        );
+        setIsPaymentOpen(true);
+        return;
+      }
+      const token = localStorage.getItem('nikah_token');
+      if (token) {
+        fetch(`/api/profiles/shortlist/toggle/${id}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(console.error);
+      }
+      const saved = localStorage.getItem('shortlisted_nikah_ids');
+      let ids = saved ? JSON.parse(saved) : [];
+      if (!ids.includes(id)) ids.push(id);
+      localStorage.setItem('shortlisted_nikah_ids', JSON.stringify(ids));
+      setShortlistedProfiles((prev) => [
+        ...prev,
+        typeof profileOrId === 'object' ? profileOrId : { id, nikahId: id },
+      ]);
+      showToast(isTamil ? 'வரன் தேர்வு செய்யப்பட்டது! ⭐' : 'Profile shortlisted! ⭐', 'success');
+    }
+  };
+
   const handleViewDetails = async (profile) => {
     const token = localStorage.getItem('nikah_token');
     const profileIdentifier = profile._id || profile.nikahId || profile.id;
@@ -256,9 +325,24 @@ export default function UserProfilePage() {
 
   const isPremium = currentUser.subscriptionStatus === 'premium' || currentUser.role === 'admin';
   const viewsUsed = Number(currentUser.monthlyViewsCount) || 0;
-  const freeViewsLimit = 5;
-  const freeChosenLimit = 3;
+  const freeViewsLimit = Number(subscriptionSettings?.freeTierLimits?.maxProfileViews ?? 5);
+  const freeChosenLimit = Number(subscriptionSettings?.freeTierLimits?.maxShortlistProfiles ?? 3);
+  const subscriptionPrice = Number(subscriptionSettings?.subscriptionPrice ?? 999);
+  const marqueePrice = Number(subscriptionSettings?.featuredMarquee?.price ?? 299);
+  const marqueeDurationDays = Number(subscriptionSettings?.featuredMarquee?.durationDays ?? 15);
+  const isUserFeatured = Boolean(
+    currentUser?.isFeatured === true &&
+      (!currentUser?.featuredUntil || new Date(currentUser?.featuredUntil) > new Date())
+  );
   const isBride = currentUser.gender === 'bride';
+
+  const SHORTLIST_PER_PAGE = 6;
+  const totalShortlistPages = Math.max(1, Math.ceil(shortlistedProfiles.length / SHORTLIST_PER_PAGE));
+  const safeShortlistPage = Math.min(Math.max(1, shortlistPage), totalShortlistPages);
+  const displayedShortlist = shortlistedProfiles.slice(
+    (safeShortlistPage - 1) * SHORTLIST_PER_PAGE,
+    safeShortlistPage * SHORTLIST_PER_PAGE
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f5efe1] text-gray-800 font-sans">
@@ -334,6 +418,24 @@ export default function UserProfilePage() {
           </div>
         </div>
 
+        {/* Edit Profile Form (Placed above Membership Plan & Usage Status Box) */}
+        {isEditing && (
+          <div ref={editFormRef} className="scroll-mt-6 animate-fadeIn">
+            <EditProfileForm
+              currentUser={currentUser}
+              onCancel={() => setIsEditing(false)}
+              onSave={(updatedUser) => {
+                setCurrentUser(updatedUser);
+                localStorage.setItem('nikah_user', JSON.stringify(updatedUser));
+                window.dispatchEvent(new Event('nikah_profile_updated'));
+                window.dispatchEvent(new Event('storage'));
+                setIsEditing(false);
+                showToast(isTamil ? 'சுயவிவரம் வெற்றிகரமாக சேமிக்கப்பட்டது' : 'Profile updated successfully', 'success');
+              }}
+            />
+          </div>
+        )}
+
         {/* 🌟 MEMBERSHIP & PLAN UPGRADE SECTION (Highlighted for User Side) 🌟 */}
         <div className="bg-gradient-to-br from-[#fdfbf6] via-[#faf4e6] to-[#f4e8cc] rounded-2xl border-2 border-[#caa85d] p-5 sm:p-6 shadow-md space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#dfd2ba] pb-4">
@@ -374,30 +476,79 @@ export default function UserProfilePage() {
                               : '1 Year'
                           }`)
                     : (isTamil
-                        ? 'இலவச கணக்கில் 5 வரன் விவரங்கள் மற்றும் 3 வரன்கள் மட்டுமே தேர்வு செய்ய முடியும்.'
-                        : 'Free tier permits viewing up to 5 profiles and choosing up to 3 profiles.')}
+                        ? `இலவச கணக்கில் ${freeViewsLimit} வரன் விவரங்கள் மற்றும் ${freeChosenLimit} வரன்கள் மட்டுமே தேர்வு செய்ய முடியும்.`
+                        : `Free tier permits viewing up to ${freeViewsLimit} profiles and choosing up to ${freeChosenLimit} profiles.`)}
                 </p>
               </div>
             </div>
 
-            {/* Upgrade CTA / Renew Button */}
-            {!isPremium ? (
+            {/* Upgrade CTA / Subscribed Status */}
+            {isPremium ? (
+              <div className="px-4 py-2.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-not-allowed select-none">
+                <FaCheckCircle className="text-emerald-700" />
+                <span>{isTamil ? 'ஏற்கனவே சந்தா செலுத்தப்பட்டுள்ளது (செயலில் உள்ளது)' : 'Already Subscribed (Active)'}</span>
+              </div>
+            ) : (
               <button
                 type="button"
                 onClick={() => setIsPaymentOpen(true)}
                 className="btn-gold py-2.5 px-5 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg hover:scale-105 transition-all cursor-pointer"
               >
                 <FaBolt className="text-[#163828]" />
-                <span>{isTamil ? 'பிரீமியத்திற்கு மேம்படுத்த (₹999)' : 'Upgrade to Premium (₹999)'}</span>
+                <span>{isTamil ? 'பிரீமியத்திற்கு மேம்படுத்த (மாதம் / ஆண்டு)' : 'Upgrade to Premium (Monthly / Annual)'}</span>
               </button>
+            )}
+          </div>
+
+          {/* 🌟 Running Marquee Bar (Featured Profile) Card */}
+          <div className="bg-gradient-to-r from-[#faf5eb] via-[#fffdf9] to-[#faf5eb] border-2 border-[#caa85d] rounded-2xl p-4 sm:p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 text-gray-950 flex items-center justify-center text-xl shadow-md flex-shrink-0">
+                <FaStar className="text-amber-800 text-lg" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#163828] font-cinzel">
+                    {isTamil ? 'ஓடும் முகப்பு பட்டியில் வரன் முன்னிலைப்படுத்தல்' : 'Feature in Top Running Marquee Bar'}
+                  </h3>
+                  {isUserFeatured ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-black uppercase flex items-center gap-1">
+                      <FaCheckCircle className="text-emerald-700" />
+                      <span>{isTamil ? 'செயலில் உள்ளது' : 'Active'}</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black uppercase">
+                      {marqueeDurationDays} {isTamil ? 'நாட்கள் காட்சி' : 'Days Feature'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                  {isUserFeatured
+                    ? (isTamil
+                        ? `உங்கள் வரன் முகப்பு ஓடும் பட்டியில் ${new Date(currentUser.featuredUntil).toLocaleDateString(isTamil ? 'ta-IN' : 'en-IN', { dateStyle: 'medium' })} வரை தொடர்ந்து ஓடிக்கொண்டிருக்கும்.`
+                        : `Your profile is actively running in the top marquee bar until ${new Date(currentUser.featuredUntil).toLocaleDateString('en-IN', { dateStyle: 'medium' })}.`)
+                    : (isTamil
+                        ? `உங்கள் வரனை வலைதள முகப்பின் உச்சியில் ஓடும் பட்டியில் காட்சிப்படுத்தி 10 மடங்கு கூடுதல் பார்வைகளைப் பெறுங்கள்.`
+                        : `Showcase your biodata continuously running at the top of the homepage and get 10x more prospective inquiries.`)}
+                </p>
+              </div>
+            </div>
+
+            {isUserFeatured ? (
+              <div className="w-full md:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-emerald-100 border border-emerald-300 text-emerald-800 shadow-xs flex items-center justify-center gap-2 flex-shrink-0 cursor-not-allowed select-none">
+                <FaCheckCircle className="text-emerald-700" />
+                <span>{isTamil ? 'ஏற்கனவே கட்டணம் செலுத்தப்பட்டது (செயலில் உள்ளது)' : 'Already Paid & Active in Running Bar'}</span>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setIsPaymentOpen(true)}
-                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer"
+                onClick={() => setIsFeatureMarqueeOpen(true)}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-500 text-gray-950 border border-amber-300 shadow-md transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 flex-shrink-0 cursor-pointer"
               >
-                <FaCrown className="text-amber-300" />
-                <span>{isTamil ? 'சந்தாவை நீட்டிக்க' : 'Renew / Extend Membership'}</span>
+                <FaCrown className="text-[#163828]" />
+                <span>
+                  {isTamil ? `ஓடும் பட்டியில் சேர்க்க (₹${marqueePrice})` : `Feature Profile (₹${marqueePrice})`}
+                </span>
               </button>
             )}
           </div>
@@ -428,8 +579,8 @@ export default function UserProfilePage() {
                 {isPremium
                   ? (isTamil ? 'அனைத்து வரன்களையும் வரம்பின்றி பார்க்கலாம்.' : 'Unlimited full profiles across all districts.')
                   : (isTamil
-                      ? `இலவச கணக்கில் 5 வரன்கள் மட்டுமே. எஞ்சியது: ${Math.max(0, freeViewsLimit - viewsUsed)}.`
-                      : `Free tier limit: 5 profiles. Remaining: ${Math.max(0, freeViewsLimit - viewsUsed)}.`)}
+                      ? `இலவச கணக்கில் ${freeViewsLimit} வரன்கள் மட்டுமே. எஞ்சியது: ${Math.max(0, freeViewsLimit - viewsUsed)}.`
+                      : `Free tier limit: ${freeViewsLimit} profiles. Remaining: ${Math.max(0, freeViewsLimit - viewsUsed)}.`)}
               </p>
             </div>
 
@@ -457,8 +608,8 @@ export default function UserProfilePage() {
                 {isPremium
                   ? (isTamil ? 'எத்தனை வரன்களை வேண்டுமானாலும் தேர்வு செய்யலாம்.' : 'Choose and shortlist unlimited profiles.')
                   : (isTamil
-                      ? `இலவச கணக்கில் 3 வரன்கள் மட்டுமே. எஞ்சியது: ${Math.max(0, freeChosenLimit - shortlistedProfiles.length)}.`
-                      : `Free tier limit: 3 chosen profiles. Left: ${Math.max(0, freeChosenLimit - shortlistedProfiles.length)}.`)}
+                      ? `இலவச கணக்கில் ${freeChosenLimit} வரன்கள் மட்டுமே. எஞ்சியது: ${Math.max(0, freeChosenLimit - shortlistedProfiles.length)}.`
+                      : `Free tier limit: ${freeChosenLimit} chosen profiles. Left: ${Math.max(0, freeChosenLimit - shortlistedProfiles.length)}.`)}
               </p>
             </div>
 
@@ -536,7 +687,7 @@ export default function UserProfilePage() {
                 <div className="flex items-center gap-2">
                   <FaCrown className="text-amber-400" />
                   <h4 className="font-extrabold text-sm sm:text-base text-[#fff5d0]">
-                    {isTamil ? 'பிரீமியம் மெம்பர்ஷிப் சலுகை: ₹999 / ஆண்டு' : 'Upgrade to Annual Premium Membership: ₹999 / Year'}
+                    {isTamil ? `பிரீமியம் மெம்பர்ஷிப் சலுகை: ₹${subscriptionPrice} / ஆண்டு` : `Upgrade to Annual Premium Membership: ₹${subscriptionPrice} / Year`}
                   </h4>
                 </div>
                 <p className="text-xs text-white/90">
@@ -556,20 +707,6 @@ export default function UserProfilePage() {
             </div>
           )}
         </div>
-
-        {/* Edit Profile Form */}
-        {isEditing && (
-          <EditProfileForm
-            currentUser={currentUser}
-            onCancel={() => setIsEditing(false)}
-            onSave={(updatedUser) => {
-              setCurrentUser(updatedUser);
-              localStorage.setItem('nikah_user', JSON.stringify(updatedUser));
-              setIsEditing(false);
-              showToast(isTamil ? 'சுயவிவரம் வெற்றிகரமாக சேமிக்கப்பட்டது' : 'Profile updated successfully', 'success');
-            }}
-          />
-        )}
 
         {/* Shortlisted Profiles Section */}
         <div>
@@ -615,7 +752,7 @@ export default function UserProfilePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#dfd2ba]">
-                  {shortlistedProfiles.map((profile) => (
+                  {displayedShortlist.map((profile) => (
                     <tr key={profile.id || profile.nikahId} className="hover:bg-[#f6efe1] transition duration-150">
                       <td className="py-3 px-4 font-mono font-bold text-[#163828]">
                         <span className="px-2 py-0.5 rounded bg-[#ebd7af] border border-[#d6bb85] text-xs">
@@ -652,6 +789,51 @@ export default function UserProfilePage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Shortlist Pagination (Max 6 Profiles per page) */}
+              {totalShortlistPages > 1 && (
+                <div className="p-3 bg-[#faf7ef] border-t border-[#dfd2ba] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-gray-700">
+                    {isTamil
+                      ? `பக்கம் ${safeShortlistPage} / ${totalShortlistPages} (மொத்தம் ${shortlistedProfiles.length} வரன்கள்)`
+                      : `Page ${safeShortlistPage} of ${totalShortlistPages} (${shortlistedProfiles.length} profiles)`}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={safeShortlistPage === 1}
+                      onClick={() => setShortlistPage((p) => Math.max(1, p - 1))}
+                      className="px-2.5 py-1 rounded border border-[#caa85d] bg-white disabled:opacity-40 font-bold hover:bg-[#f6efe1] flex items-center gap-1 cursor-pointer"
+                    >
+                      <FaChevronLeft className="text-[10px]" />
+                      <span>{isTamil ? 'முந்தைய' : 'Prev'}</span>
+                    </button>
+                    {Array.from({ length: totalShortlistPages }, (_, i) => i + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() => setShortlistPage(pg)}
+                        className={`w-7 h-7 rounded text-xs font-bold transition cursor-pointer ${
+                          pg === safeShortlistPage
+                            ? 'bg-[#163828] text-[#edd48e]'
+                            : 'bg-white border border-[#dfd2ba] text-gray-800 hover:bg-[#f6efe1]'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={safeShortlistPage === totalShortlistPages}
+                      onClick={() => setShortlistPage((p) => Math.min(totalShortlistPages, p + 1))}
+                      className="px-2.5 py-1 rounded border border-[#caa85d] bg-white disabled:opacity-40 font-bold hover:bg-[#f6efe1] flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{isTamil ? 'அடுத்த' : 'Next'}</span>
+                      <FaChevronRight className="text-[10px]" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white border-2 border-dashed border-[#caa85d] rounded-xl p-10 text-center">
@@ -681,18 +863,45 @@ export default function UserProfilePage() {
         onClose={() => setIsDetailsOpen(false)}
         currentUser={currentUser}
         viewStats={detailViewStats}
+        onToggleShortlist={handleToggleShortlist}
+        isShortlisted={Boolean(
+          selectedDetailProfile &&
+            shortlistedProfiles.some(
+              (p) =>
+                p.nikahId === selectedDetailProfile.nikahId ||
+                p.id === selectedDetailProfile.id ||
+                p._id === selectedDetailProfile._id
+            )
+        )}
         onOpenUpgrade={() => {
           setIsDetailsOpen(false);
           setIsPaymentOpen(true);
         }}
       />
 
-      {/* Razorpay Subscription Upgrade Modal */}
+      {/* Cashfree Subscription Upgrade Modal */}
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         user={currentUser}
         onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      {/* Running Marquee Bar Profile Promotion Modal */}
+      <FeatureProfileModal
+        isOpen={isFeatureMarqueeOpen}
+        onClose={() => setIsFeatureMarqueeOpen(false)}
+        currentUser={currentUser}
+        marqueeSettings={subscriptionSettings?.featuredMarquee}
+        onSuccess={() => {
+          refreshUser();
+          showToast(
+            isTamil
+              ? 'வாழ்த்துகள்! உங்கள் வரன் ஓடும் முகப்பு பட்டியில் வெற்றிகரமாக சேர்க்கப்பட்டது! 🌟'
+              : 'Congratulations! Your profile has been featured in the Top Running Marquee Bar! 🌟',
+            'success'
+          );
+        }}
       />
 
       {/* Toast Notification */}

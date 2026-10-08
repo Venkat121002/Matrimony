@@ -4,8 +4,10 @@ import {
   getUsersByIds,
   addToShortlist,
   removeFromShortlist,
+  updateUser,
   byCreatedDesc,
 } from '../models/users.js';
+import { getSettings } from '../models/settings.js';
 
 // Tamil Nadu 38 Official Districts
 export const TAMIL_NADU_DISTRICTS = [
@@ -95,13 +97,19 @@ export const getProfiles = async (req, res) => {
 
     // Strict Gatekeeping: ONLY verified, unsuspended profiles are publicly accessible
     const equals = { isVerified: true };
+    const filters = [];
     if (gender && gender !== 'all') {
       if (gender === 'overseas') equals.isOverseas = true;
       else equals.gender = gender;
     }
-    if (isOverseas === 'true' || isOverseas === true) equals.isOverseas = true;
-
-    const filters = [(u) => u.isSuspended !== true];
+    if (isOverseas === 'true' || isOverseas === true || gender === 'overseas') {
+      filters.push(
+        (u) =>
+          u.isOverseas === true ||
+          (u.citizenship && u.citizenship !== 'Indian Citizen' && u.citizenship !== 'India') ||
+          (u.countryOfResidence && u.countryOfResidence !== 'India' && u.countryOfResidence !== '')
+      );
+    }
 
     // 1. Search by Nikah ID
     if (searchId && searchId.trim()) {
@@ -125,11 +133,10 @@ export const getProfiles = async (req, res) => {
     if (ageMin) filters.push((u) => Number(u.age) >= Number(ageMin));
     if (ageMax) filters.push((u) => Number(u.age) <= Number(ageMax));
 
-    // 6-9. Marital status, education, citizenship, workplace keyword filters
+    // 6-8. Marital status, education, workplace keyword filters
     const keywordFilters = {
       maritalStatus: maritalStatus !== 'அனைத்தும்' ? maritalStatus : null,
       education: education !== 'அனைத்தும்' ? education : null,
-      citizenship,
       workplace,
     };
     for (const [field, raw] of Object.entries(keywordFilters)) {
@@ -137,6 +144,12 @@ export const getProfiles = async (req, res) => {
         const term = raw.trim();
         filters.push((u) => contains(u[field], term));
       }
+    }
+
+    // 9. Citizenship Filter (Matches citizenship or country of residence)
+    if (citizenship && citizenship !== 'all' && citizenship.trim()) {
+      const cTerm = citizenship.trim();
+      filters.push((u) => contains(u.citizenship, cTerm) || contains(u.countryOfResidence, cTerm));
     }
 
     // 10. Native Location / Native Place Filter (typable keyword)
@@ -226,7 +239,8 @@ export const getMyShortlist = async (req, res) => {
 
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
     const chosenList = await getUsersByIds(user.shortlistedProfiles || []);
-    const FREE_CHOSEN_LIMIT = 3;
+    const settings = await getSettings();
+    const FREE_CHOSEN_LIMIT = Number(settings?.freeTierLimits?.maxShortlistProfiles ?? 3);
 
     // Filter out contacts if viewer is not premium
     const sanitizedProfiles = chosenList.map((p) => {
@@ -270,7 +284,16 @@ export const toggleShortlist = async (req, res) => {
 
     const shortlist = user.shortlistedProfiles || [];
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
-    const FREE_CHOSEN_LIMIT = 3;
+    const settings = await getSettings();
+
+    if (settings?.features?.shortlistAccess === false && !isPremium) {
+      return res.status(403).json({
+        success: false,
+        message: 'Profile choosing / shortlisting feature is currently disabled by administrator.',
+      });
+    }
+
+    const FREE_CHOSEN_LIMIT = Number(settings?.freeTierLimits?.maxShortlistProfiles ?? 3);
 
     if (shortlist.includes(target._id)) {
       // Remove from shortlist
@@ -344,3 +367,118 @@ export const getDistrictsSummary = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get Featured Profiles for the Running Marquee Bar
+ * GET /api/profiles/featured-marquee
+ */
+export const getFeaturedMarqueeProfiles = async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const marqueeConfig = settings?.featuredMarquee || {
+      enabled: true,
+      price: 299,
+      durationDays: 15,
+      visibleFields: {
+        photo: true,
+        nikahId: true,
+        name: true,
+        age: true,
+        location: true,
+        education: true,
+        occupation: true,
+        monthlyIncome: false,
+        height: false,
+        maritalStatus: false,
+      },
+    };
+
+    if (marqueeConfig.enabled === false) {
+      return res.json({
+        success: true,
+        enabled: false,
+        settings: marqueeConfig,
+        profiles: [],
+      });
+    }
+
+    // Only fetch users who have paid/activated featured status
+    const featuredUsers = await findUsers({ isFeatured: true });
+    const now = new Date();
+
+    const activeFeatured = [];
+
+    for (const u of featuredUsers) {
+      if (u.isSuspended) continue;
+      const isFeatureActive =
+        u.isFeatured === true &&
+        (!u.featuredUntil || new Date(u.featuredUntil) > now);
+
+      if (isFeatureActive) {
+        activeFeatured.push({ ...u, isFeaturedBadge: true });
+      }
+    }
+
+    activeFeatured.sort(byCreatedDesc);
+
+    // Only those profiles who actually paid / have active featured status are visible
+    const profiles = activeFeatured;
+
+    res.json({
+      success: true,
+      enabled: true,
+      settings: marqueeConfig,
+      profiles,
+    });
+  } catch (err) {
+    console.error('[getFeaturedMarqueeProfiles Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve featured marquee profiles.',
+    });
+  }
+};
+
+/**
+ * Feature current user's profile for the running bar
+ * POST /api/profiles/feature-me
+ */
+export const featureMyProfile = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (user.role !== 'admin' && user.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Profile promotion in marquee requires payment via Cashfree.',
+      });
+    }
+
+    const settings = await getSettings();
+    const durationDays = Number(settings?.featuredMarquee?.durationDays || 15);
+    const featuredUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    await updateUser(user, {
+      isFeatured: true,
+      featuredUntil,
+    });
+
+    res.json({
+      success: true,
+      message: 'Alhamdulillah! Your profile has been featured in the Running Marquee Bar successfully.',
+      isFeatured: true,
+      featuredUntil,
+      durationDays,
+    });
+  } catch (err) {
+    console.error('[featureMyProfile Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to feature profile.',
+    });
+  }
+};
+

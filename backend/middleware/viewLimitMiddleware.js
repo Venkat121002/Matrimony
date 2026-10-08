@@ -1,5 +1,6 @@
 import { findUserByIdOrNikahId, updateUser } from '../models/users.js';
 import { distinctViewedProfileIds, recordView, currentMonthYear } from '../models/profileViews.js';
+import { getSettings } from '../models/settings.js';
 
 export const checkProfileViewLimit = async (req, res, next) => {
   try {
@@ -45,12 +46,17 @@ export const checkProfileViewLimit = async (req, res, next) => {
       });
     }
 
-    // Premium users have unlimited views & contact details
+    // Fetch dynamic subscription & feature constraints
+    const settings = await getSettings();
+    const canAccessContacts = Boolean(settings?.features?.directPhoneAccess ?? true);
+    const FREE_TIER_LIMIT = Number(settings?.freeTierLimits?.maxProfileViews ?? 5);
+
+    // Premium users have unlimited views & contact details (if directPhoneAccess feature enabled)
     if (viewer.subscriptionStatus === 'premium') {
       req.viewStats = {
         isPremium: true,
         unlimited: true,
-        canAccessContacts: true,
+        canAccessContacts,
       };
       return next();
     }
@@ -86,8 +92,6 @@ export const checkProfileViewLimit = async (req, res, next) => {
 
     const isAlreadyViewed = viewedProfileIds.includes(targetUser._id);
 
-    const FREE_TIER_LIMIT = 5;
-
     if (isAlreadyViewed) {
       req.viewStats = {
         isPremium: false,
@@ -100,7 +104,7 @@ export const checkProfileViewLimit = async (req, res, next) => {
       return next();
     }
 
-    // New profile view attempt: Enforce strict 5 profile limit on Free Tier
+    // New profile view attempt: Enforce dynamic limit on Free Tier
     if (viewedProfileIds.length >= FREE_TIER_LIMIT) {
       return res.status(403).json({
         success: false,

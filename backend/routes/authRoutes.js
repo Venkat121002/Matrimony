@@ -1,5 +1,14 @@
 import express from 'express';
-import { register, login, getMe, uploadKYC, updateMe } from '../controllers/authController.js';
+import {
+  register,
+  login,
+  getMe,
+  uploadKYC,
+  updateMe,
+  forgotPassword,
+  verifyResetOtpHandler,
+  resetPassword,
+} from '../controllers/authController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { uploadKYC as uploadKYCFile, uploadMedia } from '../middleware/uploadMiddleware.js';
 
@@ -10,6 +19,11 @@ router.post('/register', uploadMedia, register);
 
 // Login
 router.post('/login', login);
+
+// Forgot Password via Email OTP
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-otp', verifyResetOtpHandler);
+router.post('/reset-password', resetPassword);
 
 // Current user profile & view quota stats
 router.get('/me', verifyToken, getMe);

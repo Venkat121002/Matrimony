@@ -6,17 +6,23 @@ export default function OverseasSectionBanner({
   activeCountry,
   onSelectCountry,
   onOpenOverseasRegister,
+  onCloseOverseasView,
 }) {
   const { t, isTamil } = useLanguage();
 
   const countries = [
     { code: 'all', label: isTamil ? 'அனைத்து நாடுகள்' : 'All Countries', flag: '🌐' },
+    { code: 'Singapore', citizenLabel: 'Singapore Citizen', label: 'Singapore (சிங்கப்பூர்)', flag: '🇸🇬' },
+    { code: 'Malaysia', citizenLabel: 'Malaysia Citizen', label: 'Malaysia (மலேசியா)', flag: '🇲🇾' },
+    { code: 'UAE', citizenLabel: 'UAE Resident/Citizen', label: 'UAE (துபாய் / அமீரகம்)', flag: '🇦🇪' },
+    { code: 'Saudi Arabia', citizenLabel: 'Saudi Resident', label: 'Saudi (சவூதி அரேபியா)', flag: '🇸🇦' },
     { code: 'UK', citizenLabel: 'UK Citizen', label: 'UK (லண்டன்)', flag: '🇬🇧' },
     { code: 'USA', citizenLabel: 'US Citizen', label: 'USA (அமெரிக்கா)', flag: '🇺🇸' },
-    { code: 'UAE', citizenLabel: 'UAE Citizen', label: 'UAE (அமீரகம் / துபாய்)', flag: '🇦🇪' },
     { code: 'Canada', citizenLabel: 'Canadian Citizen', label: 'Canada (கனடா)', flag: '🇨🇦' },
     { code: 'Australia', citizenLabel: 'Australian Citizen', label: 'Australia (ஆஸ்திரேலியா)', flag: '🇦🇺' },
-    { code: 'Other', citizenLabel: 'Other Foreign Citizen', label: isTamil ? 'பிற நாடுகள் (சிங்கப்பூர்)' : 'Other (Singapore/etc)', flag: '🌏' },
+    { code: 'Qatar', citizenLabel: 'Qatar Resident', label: 'Qatar (கத்தார்)', flag: '🇶🇦' },
+    { code: 'Kuwait', citizenLabel: 'Kuwait Resident', label: 'Kuwait (குவைத்)', flag: '🇰🇼' },
+    { code: 'Other', citizenLabel: 'Other Foreign Citizen', label: isTamil ? 'பிற நாடுகள்' : 'Other Countries', flag: '🌏' },
   ];
 
   return (
@@ -51,8 +57,17 @@ export default function OverseasSectionBanner({
             </div>
           </div>
 
-          {/* Direct CTA: Register as Overseas Tamil */}
-          <div className="flex-shrink-0">
+          {/* Action buttons: Register as Overseas Tamil & Exit to All Profiles */}
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+            {onCloseOverseasView && (
+              <button
+                type="button"
+                onClick={onCloseOverseasView}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/20 text-white border border-white/30 transition flex items-center justify-center gap-1.5 shadow"
+              >
+                <span>🏠 {isTamil ? 'அனைத்து வரன்கள்' : 'All Profiles'}</span>
+              </button>
+            )}
             <button
               onClick={onOpenOverseasRegister}
               className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-gray-900 border border-amber-200 shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2"

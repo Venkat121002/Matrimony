@@ -14,6 +14,7 @@ import { streamStoredFile, deleteStoredFile } from '../middleware/uploadMiddlewa
 import { getAdminSecretKey, getAdminCreds } from '../config/secrets.js';
 import { sendVerificationStatusEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
+import { getSettings, updateSettings } from '../models/settings.js';
 
 /**
  * Get Admin Dashboard Overview Metrics
@@ -480,6 +481,95 @@ export const adminLogin = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error during admin authentication.',
+    });
+  }
+};
+
+/**
+ * Get Subscription and Feature Settings
+ * GET /api/admin/subscription-settings
+ */
+export const getSubscriptionSettings = async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({
+      success: true,
+      settings,
+    });
+  } catch (err) {
+    console.error('[Admin getSubscriptionSettings Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve subscription settings.',
+    });
+  }
+};
+
+/**
+ * Update Subscription and Feature Settings
+ * PUT /api/admin/subscription-settings
+ */
+export const updateSubscriptionSettings = async (req, res) => {
+  try {
+    const { subscriptionPrice, monthlySubscriptionPrice, freeTierLimits, features, featuredMarquee } = req.body;
+    const patch = {};
+
+    if (subscriptionPrice !== undefined && !isNaN(Number(subscriptionPrice))) {
+      patch.subscriptionPrice = Math.max(0, Number(subscriptionPrice));
+    }
+
+    if (monthlySubscriptionPrice !== undefined && !isNaN(Number(monthlySubscriptionPrice))) {
+      patch.monthlySubscriptionPrice = Math.max(0, Number(monthlySubscriptionPrice));
+    }
+
+    if (freeTierLimits && typeof freeTierLimits === 'object') {
+      patch.freeTierLimits = {};
+      if (freeTierLimits.maxProfileViews !== undefined && !isNaN(Number(freeTierLimits.maxProfileViews))) {
+        patch.freeTierLimits.maxProfileViews = Math.max(0, Number(freeTierLimits.maxProfileViews));
+      }
+      if (freeTierLimits.maxShortlistProfiles !== undefined && !isNaN(Number(freeTierLimits.maxShortlistProfiles))) {
+        patch.freeTierLimits.maxShortlistProfiles = Math.max(0, Number(freeTierLimits.maxShortlistProfiles));
+      }
+    }
+
+    if (features && typeof features === 'object') {
+      patch.features = {};
+      for (const [key, val] of Object.entries(features)) {
+        patch.features[key] = Boolean(val);
+      }
+    }
+
+    if (featuredMarquee && typeof featuredMarquee === 'object') {
+      patch.featuredMarquee = {
+        enabled: featuredMarquee.enabled !== undefined ? Boolean(featuredMarquee.enabled) : true,
+        price: Math.max(0, Number(featuredMarquee.price) || 299),
+        durationDays: Math.max(1, Number(featuredMarquee.durationDays) || 15),
+        visibleFields: {
+          photo: featuredMarquee.visibleFields?.photo !== undefined ? Boolean(featuredMarquee.visibleFields.photo) : true,
+          nikahId: featuredMarquee.visibleFields?.nikahId !== undefined ? Boolean(featuredMarquee.visibleFields.nikahId) : true,
+          name: featuredMarquee.visibleFields?.name !== undefined ? Boolean(featuredMarquee.visibleFields.name) : true,
+          age: featuredMarquee.visibleFields?.age !== undefined ? Boolean(featuredMarquee.visibleFields.age) : true,
+          location: featuredMarquee.visibleFields?.location !== undefined ? Boolean(featuredMarquee.visibleFields.location) : true,
+          education: featuredMarquee.visibleFields?.education !== undefined ? Boolean(featuredMarquee.visibleFields.education) : true,
+          occupation: featuredMarquee.visibleFields?.occupation !== undefined ? Boolean(featuredMarquee.visibleFields.occupation) : true,
+          monthlyIncome: Boolean(featuredMarquee.visibleFields?.monthlyIncome),
+          height: Boolean(featuredMarquee.visibleFields?.height),
+          maritalStatus: Boolean(featuredMarquee.visibleFields?.maritalStatus),
+        },
+      };
+    }
+
+    const updated = await updateSettings(patch);
+    res.json({
+      success: true,
+      message: 'Subscription and feature settings updated successfully.',
+      settings: updated,
+    });
+  } catch (err) {
+    console.error('[Admin updateSubscriptionSettings Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update subscription settings.',
     });
   }
 };

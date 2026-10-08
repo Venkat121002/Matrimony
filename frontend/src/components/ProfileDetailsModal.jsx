@@ -9,6 +9,10 @@ import {
   FaUserTie,
   FaUser,
   FaGraduationCap,
+  FaBriefcase,
+  FaUsers,
+  FaGlobeAmericas,
+  FaStar,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import DefaultAvatar from './DefaultAvatar';
@@ -21,8 +25,10 @@ export default function ProfileDetailsModal({
   currentUser,
   viewStats,
   onOpenUpgrade,
+  onToggleShortlist,
+  isShortlisted,
 }) {
-  const { t, isTamil, translateValue, translateName } = useLanguage();
+  const { t, isTamil, translateValue, translateName, translateWorkPreference } = useLanguage();
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState(null);
   const mouseDownTargetRef = useRef(null);
 
@@ -84,21 +90,42 @@ export default function ProfileDetailsModal({
       >
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-400 text-gray-900 font-extrabold text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="px-2 py-0.5 rounded bg-amber-400 text-gray-900 font-extrabold text-xs flex-shrink-0">
               ID: {profile.nikahId || profile.id}
             </span>
-            <h3 className="font-extrabold text-base sm:text-lg text-[#fffae6] tracking-wide font-cinzel">
+            <h3 className="font-extrabold text-sm sm:text-base text-[#fffae6] tracking-wide font-cinzel truncate">
               {isGroom ? t('groomDetails') : t('brideDetails')} - {candidateName}
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/80 hover:text-white transition p-1 text-base"
-            aria-label="Close"
-          >
-            <FaTimes />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {onToggleShortlist && !isSelf && (
+              <button
+                type="button"
+                onClick={() => onToggleShortlist(profile.id || profile._id || profile.nikahId)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+                  isShortlisted
+                    ? 'bg-amber-400 text-gray-950 font-black border border-amber-200'
+                    : 'bg-white/15 hover:bg-white/25 text-amber-200 border border-amber-300/40'
+                }`}
+                title={isShortlisted ? (isTamil ? 'தேர்வு நீக்குக' : 'Remove from Chosen') : (isTamil ? 'வரனைத் தேர்வு செய்க' : 'Choose Profile')}
+              >
+                <FaStar className={isShortlisted ? 'text-amber-900' : 'text-amber-300'} />
+                <span>
+                  {isShortlisted
+                    ? (isTamil ? 'தேர்வு செய்யப்பட்டது' : 'Chosen Profile')
+                    : (isTamil ? 'வரனைத் தேர்வு செய்க' : 'Choose Profile')}
+                </span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white transition p-1 text-base rounded-md hover:bg-white/10"
+              aria-label="Close"
+            >
+              <FaTimes />
+            </button>
+          </div>
         </div>
 
         {/* Content Body: ONLY showing details provided in the registration form */}
@@ -115,8 +142,8 @@ export default function ProfileDetailsModal({
                 <div className="flex items-center justify-between w-full">
                   <span className="text-[#4b3a1a] font-bold">
                     {isTamil
-                      ? `இலவச வரன் பார்வை: ${viewStats.viewsRemaining || 0} / 5 எஞ்சியுள்ளது`
-                      : `Free Trial: ${viewStats.viewsRemaining || 0} of 5 views remaining this month`}
+                      ? `இலவச வரன் பார்வை: ${viewStats.viewsRemaining ?? 0} / ${viewStats.limit ?? 5} எஞ்சியுள்ளது`
+                      : `Free Trial: ${viewStats.viewsRemaining ?? 0} of ${viewStats.limit ?? 5} views remaining this month`}
                   </span>
                   {onOpenUpgrade && (
                     <button
@@ -169,6 +196,18 @@ export default function ProfileDetailsModal({
             <NeatDetailRow label={isTamil ? 'சொந்த இருப்பிடம்' : 'Native Location'} value={translateValue(profile.location || profile.nativePlace || profile.district) || '—'} />
             <NeatDetailRow label={isTamil ? 'பணிபுரியும் இடம்' : 'Workplace Location'} value={translateValue(profile.workplace || profile.workplaceEn) || '—'} />
             <NeatDetailRow label={isTamil ? 'உயரம்' : 'Height'} value={translateValue(profile.height || profile.heightEn) || '—'} />
+            {Boolean(profile.isOverseas || profile.citizenship) && (
+              <NeatDetailRow
+                label={isTamil ? 'குடியுரிமை (Citizenship)' : 'Citizenship'}
+                value={`🌍 ${profile.citizenship || (isTamil ? 'வெளிநாடு' : 'Overseas')}`}
+              />
+            )}
+            {Boolean(profile.countryOfResidence) && (
+              <NeatDetailRow
+                label={isTamil ? 'வசிக்கும் நாடு' : 'Country of Residence'}
+                value={profile.countryOfResidence}
+              />
+            )}
           </div>
 
           {/* Section 2: Contact Numbers & Publisher Info */}
@@ -282,15 +321,152 @@ export default function ProfileDetailsModal({
             <NeatDetailRow label={isTamil ? 'கல்வித் தகுதி' : 'Education Qualification'} value={translateValue(profile.education || profile.educationEn) || '—'} />
             <NeatDetailRow label={isTamil ? 'தொழில் / பணி' : 'Occupation'} value={translateValue(profile.occupation || profile.profession || profile.professionEn) || '—'} />
             <NeatDetailRow label={isTamil ? 'பணிபுரியும் இடம்' : 'Workplace Location'} value={translateValue(profile.workplace || profile.workplaceEn) || '—'} />
+            {Boolean(profile.workingYearsInTitleLocation) && (
+              <NeatDetailRow
+                label={isTamil ? 'இப்பதவியில் பணி அனுபவம்' : 'Years in Title & Location'}
+                value={`${profile.workingYearsInTitleLocation} ${isTamil ? 'ஆண்டுகள் (இப்பணியிடத்தில்)' : 'Years (In this location)'}`}
+              />
+            )}
             <NeatDetailRow label={isTamil ? 'மாத வருமானம்' : 'Monthly Income'} value={translateValue(profile.monthlyIncome || profile.income || profile.incomeEn) || '—'} />
             <NeatDetailRow label={isTamil ? 'சொத்துக்கள்' : 'Properties'} value={translateValue(profile.property || profile.properties || profile.propertyEn || profile.propertiesEn) || '—'} />
           </div>
 
-          {/* Section 4: Photos (Maximum up to 5) */}
+          {/* Section 4: Work Preferences (பணி விருப்பங்கள்) */}
+          <div className="bg-[#fbf9f2] p-3.5 rounded-xl border border-[#dfd2ba] space-y-2">
+            <h4 className="font-extrabold text-sm text-[#163828] flex items-center gap-1.5 border-b border-[#dfd2ba] pb-1.5 mb-2">
+              <FaBriefcase className="text-[#caa85d]" />
+              <span>4. {isTamil ? 'பணி விருப்பங்கள்' : 'Work Preferences'}</span>
+            </h4>
+            {isGroom ? (
+              <NeatDetailRow
+                label={isTamil ? 'மணமகள் பணிபுரிவது குறித்த விருப்பம்' : 'Preference Regarding Bride Working'}
+                value={
+                  translateWorkPreference(
+                    profile.workPreferences?.groomWorkPreference || profile.workPreference,
+                    true
+                  )
+                }
+              />
+            ) : (
+              <NeatDetailRow
+                label={isTamil ? 'மணமகள் பணி நிலை / விருப்பம்' : 'Bride’s Work Preference'}
+                value={
+                  translateWorkPreference(
+                    profile.workPreferences?.brideWorkStatus || profile.workPreference,
+                    false
+                  )
+                }
+              />
+            )}
+            {profile.workPreferences?.notes && (
+              <NeatDetailRow
+                label={isTamil ? 'கூடுதல் குறிப்பு' : 'Additional Notes'}
+                value={translateValue(profile.workPreferences.notes)}
+              />
+            )}
+          </div>
+
+          {/* Section 5: Family Details (பெற்றோர் & உடன்பிறப்புகள்) */}
+          <div className="bg-[#fbf9f2] p-3.5 rounded-xl border border-[#dfd2ba] space-y-3">
+            <h4 className="font-extrabold text-sm text-[#163828] flex items-center gap-1.5 border-b border-[#dfd2ba] pb-1.5">
+              <FaUsers className="text-[#caa85d]" />
+              <span>5. {isTamil ? 'குடும்ப விவரங்கள்' : 'Family Details'}</span>
+            </h4>
+
+            {/* Parents Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Father Box */}
+              <div className="p-2.5 bg-white/90 rounded-lg border border-[#e2d5bd] space-y-1">
+                <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
+                  👨 {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
+                </span>
+                <div className="text-xs space-y-1 pt-1">
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherName || profile.fatherName || '—'}</span></p>
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherAge ? `${profile.familyDetails.fatherAge} ${isTamil ? 'வயது' : 'Years'}` : '—'}</span></p>
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'தொழில்' : 'Occupation'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherOccupation || profile.fatherOccupation || '—'}</span></p>
+                </div>
+              </div>
+
+              {/* Mother Box */}
+              <div className="p-2.5 bg-white/90 rounded-lg border border-[#e2d5bd] space-y-1">
+                <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
+                  👩 {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
+                </span>
+                <div className="text-xs space-y-1 pt-1">
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span> <span className="font-semibold">{profile.familyDetails?.motherName || profile.motherName || '—'}</span></p>
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span> <span className="font-semibold">{profile.familyDetails?.motherAge ? `${profile.familyDetails.motherAge} ${isTamil ? 'வயது' : 'Years'}` : '—'}</span></p>
+                  <p><span className="font-bold text-gray-700">{isTamil ? 'தொழில்' : 'Occupation'}:</span> <span className="font-semibold">{profile.familyDetails?.motherOccupation || profile.motherOccupation || (isTamil ? 'இல்லத்தரசி (Home Maker)' : 'Home Maker')}</span></p>
+                </div>
+              </div>
+            </div>
+
+            {/* Siblings List */}
+            <div className="pt-2 border-t border-[#dfd2ba]/70">
+              <span className="font-bold text-xs text-[#163828] block mb-1.5">
+                👥 {isTamil ? 'உடன்பிறப்புகள் விவரம் (Siblings Details):' : 'Siblings Details:'}
+              </span>
+              {Array.isArray(profile.familyDetails?.siblings) && profile.familyDetails.siblings.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {profile.familyDetails.siblings.map((sib, sIdx) => {
+                    const rel = String(sib.relation || '').toLowerCase();
+                    const isSister = rel === 'sister' || sib.relation === 'சகோதரி';
+                    const status = String(sib.maritalStatus || '').toLowerCase();
+                    const isMarried = status === 'married' || sib.maritalStatus === 'திருமணமானவர்';
+                    return (
+                      <div
+                        key={sIdx}
+                        className="p-2 bg-white rounded-lg border border-[#dfd2ba] flex items-center justify-between text-xs shadow-2xs"
+                      >
+                        <div>
+                          <span className="font-extrabold text-[#163828] block">{sib.name || `${isTamil ? 'உடன்பிறப்பு' : 'Sibling'} ${sIdx + 1}`}</span>
+                          <span className="text-[11px] text-gray-600 font-medium">
+                            {isSister ? (isTamil ? 'சகோதரி (Sister)' : 'Sister') : (isTamil ? 'சகோதரர் (Brother)' : 'Brother')}
+                          </span>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isMarried
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          }`}
+                        >
+                          {isMarried ? (isTamil ? 'திருமணமானவர்' : 'Married') : (isTamil ? 'திருமணமாகாதவர்' : 'Unmarried')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : profile.familyDetails?.siblingDetails && typeof profile.familyDetails.siblingDetails === 'object' && Object.values(profile.familyDetails.siblingDetails).some(v => v && v !== 'இல்லை' && v !== '0') ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {Object.entries(profile.familyDetails.siblingDetails).map(([k, v]) => {
+                    if (!v || v === 'இல்லை' || v === '0') return null;
+                    const label = {
+                      elderBrother: isTamil ? 'மூத்த சகோதரர்' : 'Elder Brother',
+                      youngerBrother: isTamil ? 'இளைய சகோதரர்' : 'Younger Brother',
+                      elderSister: isTamil ? 'மூத்த சகோதரி' : 'Elder Sister',
+                      youngerSister: isTamil ? 'இளைய சகோதரி' : 'Younger Sister',
+                    }[k] || k;
+                    return (
+                      <div key={k} className="p-2 bg-white rounded-lg border border-[#dfd2ba] text-xs">
+                        <span className="text-gray-500 block text-[10px]">{label}</span>
+                        <span className="font-extrabold text-[#163828] text-xs">{v}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 italic p-2 bg-white/60 rounded border border-[#e2d5bd]">
+                  {isTamil ? 'உடன்பிறப்புகள் விவரம் குறிப்பிடப்படவில்லை.' : 'No sibling details listed.'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Section 6: Photos (Maximum up to 5) */}
           <div className="bg-[#fbf9f2] p-3.5 rounded-xl border border-[#dfd2ba] space-y-2">
             <h4 className="font-extrabold text-sm text-[#163828] flex items-center gap-1.5 border-b border-[#dfd2ba] pb-1.5">
               <FaCamera className="text-[#caa85d]" />
-              <span>4. {isTamil ? 'புகைப்படங்கள் (அதிகபட்சம் 5)' : 'Photos (Up to 5)'}</span>
+              <span>6. {isTamil ? 'புகைப்படங்கள் (அதிகபட்சம் 5)' : 'Photos (Up to 5)'}</span>
             </h4>
             {profile.photos && profile.photos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-1">
@@ -327,11 +503,11 @@ export default function ProfileDetailsModal({
             )}
           </div>
 
-          {/* Section 5: Description & Playable Audio Note */}
+          {/* Section 7: Description & Playable Audio Note */}
           <div className="bg-[#fbf9f2] p-3.5 rounded-xl border border-[#dfd2ba] space-y-3">
             <div>
               <h4 className="font-extrabold text-sm text-[#163828] border-b border-[#dfd2ba] pb-1">
-                5. {isTamil ? 'சுயவிவர குறிப்பு' : 'Description (Profile Bio)'}
+                7. {isTamil ? 'சுயவிவர குறிப்பு' : 'Description (Profile Bio)'}
               </h4>
               <p className="p-2.5 bg-white rounded-lg border border-[#dfd2ba] font-semibold text-gray-800 text-xs sm:text-sm mt-1.5 leading-relaxed">
                 {translateValue(!isTamil ? (profile.descriptionEn || profile.description || profile.bioEn || profile.bio || profile.requirementEn || profile.requirement) : (profile.description || profile.bio || profile.requirement || profile.descriptionEn || profile.bioEn || profile.requirementEn)) || '—'}
@@ -363,50 +539,71 @@ export default function ProfileDetailsModal({
             </div>
           </div>
 
-          {/* Modal Footer: Action Buttons (Call / WhatsApp / Upgrade / Close) */}
+          {/* Modal Footer: Action Buttons (Call / WhatsApp / Upgrade / Choose / Close) */}
           <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#dfd2ba]">
-            {canAccessContacts ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="btn-gold px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow"
+            <div className="flex flex-wrap items-center gap-2">
+              {canAccessContacts ? (
+                <>
+                  <a
+                    href={`tel:${profile.phone}`}
+                    className="btn-gold px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow"
+                  >
+                    <FaPhoneAlt className="text-xs" />
+                    <span>{t('phoneCol')}: {profile.phone || '—'}</span>
+                  </a>
+                  {profile.phone && (
+                    <a
+                      href={`https://wa.me/91${String(profile.phone).replace(/\D/g, '').slice(-10)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-[#25D366] text-white hover:bg-[#20ba5a] flex items-center gap-1.5 shadow transition"
+                    >
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+                </>
+              ) : currentUser ? (
+                <button
+                  type="button"
+                  onClick={onOpenUpgrade}
+                  className="btn-gold px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow hover:scale-105 transition cursor-pointer"
+                >
+                  <FaCrown className="text-amber-800" />
+                  <span>{isTamil ? 'தொடர்பு கொள்ள பிரீமியத்திற்கு மேம்படுத்துங்கள்' : 'Upgrade to Premium to Call & WhatsApp'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenLogin();
+                  }}
+                  className="btn-gold px-5 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow"
                 >
                   <FaPhoneAlt className="text-xs" />
-                  <span>{t('phoneCol')}: {profile.phone || '—'}</span>
-                </a>
-                {profile.phone && (
-                  <a
-                    href={`https://wa.me/91${String(profile.phone).replace(/\D/g, '').slice(-10)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-[#25D366] text-white hover:bg-[#20ba5a] flex items-center gap-1.5 shadow transition"
-                  >
-                    <span>WhatsApp</span>
-                  </a>
-                )}
-              </div>
-            ) : currentUser ? (
-              <button
-                type="button"
-                onClick={onOpenUpgrade}
-                className="btn-gold px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow hover:scale-105 transition cursor-pointer"
-              >
-                <FaCrown className="text-amber-800" />
-                <span>{isTamil ? 'தொடர்பு கொள்ள பிரீமியத்திற்கு மேம்படுத்துங்கள்' : 'Upgrade to Premium to Call & WhatsApp'}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenLogin();
-                }}
-                className="btn-gold px-5 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow"
-              >
-                <FaPhoneAlt className="text-xs" />
-                <span>{t('contactCol')} {t('phoneCol')} ({isTamil ? 'உள்நுழையவும்' : 'Login'})</span>
-              </button>
-            )}
+                  <span>{t('contactCol')} {t('phoneCol')} ({isTamil ? 'உள்நுழையவும்' : 'Login'})</span>
+                </button>
+              )}
+
+              {onToggleShortlist && !isSelf && (
+                <button
+                  type="button"
+                  onClick={() => onToggleShortlist(profile.id || profile._id || profile.nikahId)}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold flex items-center gap-1.5 shadow transition cursor-pointer ${
+                    isShortlisted
+                      ? 'bg-amber-400 text-gray-950 border border-amber-300 ring-1 ring-amber-400'
+                      : 'bg-[#163828] text-amber-200 hover:bg-[#204e38] border border-amber-400/60'
+                  }`}
+                >
+                  <FaStar className={isShortlisted ? 'text-amber-900' : 'text-amber-300'} />
+                  <span>
+                    {isShortlisted
+                      ? (isTamil ? '✓ தேர்ந்தெடுக்கப்பட்ட வரன்' : '✓ Chosen Profile')
+                      : (isTamil ? '⭐ வரனைத் தேர்வு செய்க' : '⭐ Choose Profile')}
+                  </span>
+                </button>
+              )}
+            </div>
 
             <button
               type="button"

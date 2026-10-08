@@ -18,6 +18,10 @@ export const {
   getUsersByIds,
   findUsers,
   countUsers,
+  setResetOtp,
+  verifyResetOtp,
+  checkResetOtpVerified,
+  setUserPassword,
 } = driver;
 
 // Mirrors the old `checkTrialStatus()` instance method (in-memory only).

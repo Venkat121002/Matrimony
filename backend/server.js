@@ -7,6 +7,7 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 dotenv.config({ path: fileURLToPath(new URL('./.env.local', import.meta.url)) });
+dotenv.config();
 const { default: app } = await import('./app.js');
 const { DB_TYPE, connectDatabase } = await import('./config/database.js');
 

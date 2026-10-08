@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart } from 'react-icons/fa';
+import { FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact }) {
@@ -77,6 +77,23 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
               </div>
             </div>
 
+            <div className="flex items-center gap-2.5 pt-1">
+              <div className="w-6 h-6 rounded bg-[#1e4a35] flex items-center justify-center text-emerald-400 flex-shrink-0">
+                <FaWhatsapp className="text-sm" />
+              </div>
+              <div>
+                <div className="text-[11px] text-[#eed48e] font-bold">WhatsApp:</div>
+                <a
+                  href="https://wa.me/919171896625"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-white hover:text-emerald-300 transition flex items-center gap-1"
+                  title="WhatsApp: 9171896625"
+                >
+                  9171896625
+                </a>
+              </div>
+            </div>
           </div>
         </div>
 

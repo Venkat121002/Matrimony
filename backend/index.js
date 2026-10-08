@@ -9,6 +9,8 @@ const secrets = [
   'ADMIN_SECRET_KEY',
   'ADMIN_PASSWORD',
   'SUPERADMIN_PASSWORD',
+  'CASHFREE_APP_ID',
+  'CASHFREE_SECRET_KEY',
   'RAZORPAY_KEY_SECRET',
   'RAZORPAY_WEBHOOK_SECRET',
   // Add 'SMTP_PASS' here (and set SMTP_HOST/SMTP_USER in .env.<project>) once a real

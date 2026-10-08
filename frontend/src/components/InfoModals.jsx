@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FaTimes, FaInfoCircle, FaPhoneAlt, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaTimes, FaInfoCircle, FaPhoneAlt, FaMapMarkerAlt, FaClock, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export function AboutModal({ isOpen, onClose }) {
@@ -71,7 +71,7 @@ export function AboutModal({ isOpen, onClose }) {
 }
 
 export function ContactModal({ isOpen, onClose }) {
-  const { t } = useLanguage();
+  const { t, isTamil } = useLanguage();
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -113,13 +113,37 @@ export function ContactModal({ isOpen, onClose }) {
         </div>
 
         <div className="p-5 text-xs sm:text-sm text-[#35250c] space-y-3.5">
+          {/* Working Hours */}
           <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#c5b597] shadow-sm">
-            <FaMapMarkerAlt className="text-[#b85a00] text-base" />
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 flex-shrink-0">
+              <FaClock className="text-base" />
+            </div>
             <div>
               <div className="text-[11px] text-gray-500 font-bold">{t('modalWorkHoursLabel')}</div>
               <p className="font-bold text-[#35250c]">
                 {t('modalWorkHoursVal')}
               </p>
+            </div>
+          </div>
+
+          {/* WhatsApp Support Number */}
+          <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-300 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white flex-shrink-0">
+              <FaWhatsapp className="text-lg" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[11px] text-emerald-800 font-bold">WhatsApp</div>
+              <a
+                href="https://wa.me/919171896625"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-extrabold text-sm sm:text-base text-emerald-900 hover:text-emerald-700 transition flex items-center justify-between gap-1.5"
+              >
+                <span>9171896625</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                  {isTamil ? 'நேரடி அரட்டை' : 'Chat Now'}
+                </span>
+              </a>
             </div>
           </div>
 

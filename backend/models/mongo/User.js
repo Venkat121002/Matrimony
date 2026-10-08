@@ -30,9 +30,19 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
       select: false,
     },
+    resetOtp: {
+      code: { type: String, default: '' },
+      expiresAt: { type: Date, default: null },
+      verified: { type: Boolean, default: false },
+    },
     phone: {
       type: String,
       required: [true, 'Phone number is required'],
+      trim: true,
+    },
+    countryCode: {
+      type: String,
+      default: '+91',
       trim: true,
     },
     additionalPhones: [
@@ -166,6 +176,12 @@ const userSchema = new mongoose.Schema(
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 1 month non-removal period
     },
 
+    // Work experience in title and location
+    workingYearsInTitleLocation: {
+      type: String,
+      default: '',
+    },
+
     // Family Details
     familyDetails: {
       fatherName: { type: String, default: '' },
@@ -173,7 +189,15 @@ const userSchema = new mongoose.Schema(
       fatherOccupation: { type: String, default: '' },
       motherName: { type: String, default: '' },
       motherAge: { type: Number, default: 50 },
+      motherOccupation: { type: String, default: '' },
       siblingsCount: { type: Number, default: 0 },
+      siblings: [
+        {
+          name: { type: String, default: '' },
+          relation: { type: String, default: 'brother' },
+          maritalStatus: { type: String, default: 'திருமணம் ஆகாதவர்' },
+        },
+      ],
       siblingDetails: {
         elderSister: { type: String, default: 'இல்லை' },
         youngerSister: { type: String, default: 'இல்லை' },
@@ -186,13 +210,19 @@ const userSchema = new mongoose.Schema(
     workPreferences: {
       brideWorkStatus: {
         type: String,
-        enum: ['will_work', 'homemaker', 'permission'],
         default: 'will_work',
       },
       groomWorkPreference: {
         type: String,
-        enum: ['working_bride', 'homemaker_bride', 'no_preference'],
-        default: 'working_bride',
+        default: 'need_working',
+      },
+      preferenceOption: {
+        type: String,
+        default: '',
+      },
+      preferenceText: {
+        type: String,
+        default: '',
       },
     },
 
@@ -291,6 +321,16 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: String,
       default: '',
+    },
+
+    // Running Marquee Bar (Featured Profile)
+    isFeatured: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    featuredUntil: {
+      type: Date,
     },
   },
   {

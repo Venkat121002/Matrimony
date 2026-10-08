@@ -11,7 +11,7 @@ export default function ProfileCard({
   onViewDetails,
   currentUser,
 }) {
-  const { t, translateValue, translateName, isTamil } = useLanguage();
+  const { t, translateValue, translateName, isTamil, translateWorkPreference } = useLanguage();
   const [isRejected, setIsRejected] = useState(false);
   const [, setIsHoveredPhoto] = useState(false);
 
@@ -44,9 +44,25 @@ export default function ProfileCard({
         ? (profile.locationEn || profile.nativePlaceEn || translateValue(profile.location || profile.nativePlace || profile.district))
         : translateValue(profile.location || profile.nativePlace || profile.district),
     },
+    ...(profile.isOverseas || profile.citizenship ? [{
+      label: isTamil ? 'குடியுரிமை' : 'Citizenship',
+      value: `🌍 ${profile.citizenship || (isTamil ? 'வெளிநாடு' : 'Overseas')}${profile.countryOfResidence && profile.countryOfResidence !== profile.citizenship ? ` (${profile.countryOfResidence})` : ''}`,
+      highlight: true,
+    }] : []),
     ...(profile.workplace ? [{
       label: isTamil ? 'பணியிடம்' : 'Workplace',
       value: translateValue(profile.workplace || profile.workplaceEn),
+    }] : []),
+    ...(profile.workingYearsInTitleLocation ? [{
+      label: isTamil ? 'பணி அனுபவம்' : 'Role Experience',
+      value: `${profile.workingYearsInTitleLocation} ${isTamil ? 'ஆண்டுகள் (இப்பதவியில்)' : 'Years (In Title)'}`,
+    }] : []),
+    ...(profile.workPreferences?.brideWorkStatus || profile.workPreferences?.groomWorkPreference || profile.workPreference ? [{
+      label: isTamil ? 'பணி விருப்பம்' : 'Work Preference',
+      value: translateWorkPreference(
+        profile.workPreferences?.brideWorkStatus || profile.workPreferences?.groomWorkPreference || profile.workPreference,
+        profile.gender === 'groom' || profile.gender === 'மணமகன்'
+      ),
     }] : []),
 
     {
@@ -223,12 +239,24 @@ export default function ProfileCard({
                 ID:{profile.nikahId || profile.id}
               </span>
 
+              {/* Overseas Badge */}
+              {(profile.isOverseas || profile.citizenship) && (
+                <div className="pt-0.5">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#163828] text-amber-200 rounded-full font-bold text-[10px] sm:text-[11px] border border-amber-400 shadow-xs">
+                    <span>🌍</span>
+                    <span>{profile.citizenship || (isTamil ? 'வெளிநாடு' : 'Overseas')}</span>
+                  </span>
+                </div>
+              )}
+
               {/* Verified Badge (✓ Verified / சரிபார்க்கப்பட்டது) */}
               {profile.isVerified !== false && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-800 text-white rounded-full font-bold text-[10px] sm:text-[11px] border border-amber-300 shadow-xs">
-                  <FaCheckCircle className="text-amber-300 text-[10px]" />
-                  <span>{isTamil ? 'சரிபார்க்கப்பட்டது' : 'Verified'}</span>
-                </span>
+                <div>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-800 text-white rounded-full font-bold text-[10px] sm:text-[11px] border border-amber-300 shadow-xs">
+                    <FaCheckCircle className="text-amber-300 text-[10px]" />
+                    <span>{isTamil ? 'சரிபார்க்கப்பட்டது' : 'Verified'}</span>
+                  </span>
+                </div>
               )}
             </div>
           </div>

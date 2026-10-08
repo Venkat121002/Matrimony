@@ -7,7 +7,15 @@ export const createPayment = async (fields) => plain((await Payment.create(field
 
 export const getPaymentByOrderId = async (orderId) => {
   if (!orderId || typeof orderId !== 'string') return null;
-  return plain(await Payment.findOne({ razorpayOrderId: orderId }).lean());
+  return plain(
+    await Payment.findOne({
+      $or: [
+        { cashfreeOrderId: orderId },
+        { orderId: orderId },
+        { razorpayOrderId: orderId },
+      ],
+    }).lean()
+  );
 };
 
 export const updatePayment = async (payment, patch) => {

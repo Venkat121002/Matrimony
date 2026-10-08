@@ -18,7 +18,12 @@ app.use(
   })
 );
 
-// Special Webhook route (captures raw body for crypto HMAC signature verification)
+// Cashfree & Razorpay Webhook routes (capture raw body for signature verification)
+app.post(
+  '/api/webhooks/cashfree',
+  express.raw({ type: 'application/json' }),
+  handleWebhook
+);
 app.post(
   '/api/webhooks/razorpay',
   express.raw({ type: 'application/json' }),

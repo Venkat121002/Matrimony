@@ -7,11 +7,16 @@ import {
   checkTrialStatus,
   updateUser,
   getUserById,
+  setResetOtp,
+  verifyResetOtp,
+  checkResetOtpVerified,
+  setUserPassword,
 } from '../models/users.js';
 import { countViewsInMonth, currentMonthYear } from '../models/profileViews.js';
 import { getJwtSecret } from '../config/secrets.js';
-import { sendWelcomeEmail } from '../services/emailService.js';
+import { sendWelcomeEmail, sendPasswordResetOtpEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
+import { sendWhatsAppOtp, createWhatsAppDirectLink } from '../services/whatsappService.js';
 
 // Helper to generate JWT
 const generateToken = (user) => {
@@ -63,16 +68,20 @@ export const register = async (req, res) => {
       currentAddress,
       livingYears,
       requirement,
+      workingYearsInTitleLocation,
       fatherName,
       fatherAge,
       fatherOccupation,
       motherName,
       motherAge,
+      motherOccupation,
+      siblings,
       siblingsCount,
       elderSister,
       youngerSister,
       elderBrother,
       youngerBrother,
+      workPreference,
       brideWorkStatus,
       groomWorkPreference,
       isOverseas,
@@ -89,6 +98,8 @@ export const register = async (req, res) => {
       });
     }
 
+    const isCandidateOverseas = Boolean(isOverseas === 'true' || isOverseas === true);
+    const rawCountryCode = (req.body.countryCode || '').trim();
     const cleanPhone = (phone || '').trim();
     if (!cleanPhone) {
       return res.status(400).json({
@@ -102,6 +113,26 @@ export const register = async (req, res) => {
         success: false,
         message: 'Password must be at least 6 characters.',
       });
+    }
+
+    // Determine resolvedCountryCode and formatted full phone
+    let resolvedCountryCode = rawCountryCode;
+    let finalPhone = cleanPhone;
+    if (cleanPhone.startsWith('+')) {
+      finalPhone = cleanPhone;
+      if (!resolvedCountryCode) {
+        const match = cleanPhone.match(/^(\+\d{1,4})/);
+        if (match) resolvedCountryCode = match[1];
+      }
+    } else if (rawCountryCode) {
+      resolvedCountryCode = rawCountryCode.startsWith('+') ? rawCountryCode : `+${rawCountryCode}`;
+      finalPhone = `${resolvedCountryCode} ${cleanPhone.replace(/^0+/, '')}`.trim();
+    } else if (isCandidateOverseas) {
+      resolvedCountryCode = '+65';
+      finalPhone = `+65 ${cleanPhone.replace(/^0+/, '')}`.trim();
+    } else {
+      resolvedCountryCode = '+91';
+      finalPhone = `+91 ${cleanPhone.replace(/^0+/, '')}`.trim();
     }
 
     // Process additional phones if any
@@ -127,15 +158,36 @@ export const register = async (req, res) => {
     // Fallback email if omitted
     const resolvedEmail = email && email.trim()
       ? email.toLowerCase().trim()
-      : `${cleanPhone.replace(/\D/g, '')}@tamilnikah.com`;
+      : `${finalPhone.replace(/\D/g, '')}@tamilnikah.com`;
 
     // Check if user already exists with this phone or email
-    const phoneDigits = cleanPhone.replace(/\D/g, '');
-    const last10Digits = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
+    const phoneDigits = finalPhone.replace(/\D/g, '');
+    const cleanPhoneDigits = cleanPhone.replace(/\D/g, '');
+    const phoneVariants = [
+      finalPhone,
+      finalPhone.replace(/\s+/g, ''),
+      cleanPhone,
+      cleanPhone.replace(/\s+/g, ''),
+    ];
 
-    const phoneVariants = [cleanPhone, cleanPhone.replace(/\s+/g, '')];
+    if (cleanPhoneDigits) {
+      phoneVariants.push(cleanPhoneDigits);
+    }
+    if (phoneDigits) {
+      phoneVariants.push(phoneDigits);
+    }
 
-    if (last10Digits.length === 10) {
+    if (resolvedCountryCode) {
+      const pureLocal = cleanPhone.replace(/^\+\d{1,4}\s*/, '').replace(/\D/g, '');
+      if (pureLocal) {
+        phoneVariants.push(pureLocal);
+        phoneVariants.push(`${resolvedCountryCode}${pureLocal}`);
+        phoneVariants.push(`${resolvedCountryCode} ${pureLocal}`);
+      }
+    }
+
+    const last10Digits = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : '';
+    if ((resolvedCountryCode === '+91' || !isCandidateOverseas) && last10Digits) {
       phoneVariants.push(
         last10Digits,
         `+91${last10Digits}`,
@@ -205,13 +257,36 @@ export const register = async (req, res) => {
     };
 
     // Location & District fallback
-    const resolvedDistrict = (location || district || 'Chennai').trim();
-    const resolvedLocation = (location || district || '').trim();
+    const resolvedState = isCandidateOverseas ? 'Overseas' : (state || 'Tamil Nadu');
+    const resolvedLocation = (location || district || (isCandidateOverseas ? (countryOfResidence || citizenship || 'Singapore') : 'Chennai')).trim();
+    const resolvedDistrict = isCandidateOverseas
+      ? (district || `Overseas - ${citizenship || countryOfResidence || resolvedLocation}`).trim()
+      : (location || district || 'Chennai').trim();
 
     // Income & Properties
     const resolvedIncome = (income || monthlyIncome || '').trim();
     const resolvedProperty = (properties || property || '').trim();
     const resolvedDescription = (description || bio || '').trim();
+
+    // Process siblings list if provided
+    let parsedSiblings = [];
+    if (siblings) {
+      if (Array.isArray(siblings)) {
+        parsedSiblings = siblings;
+      } else if (typeof siblings === 'string' && siblings.trim()) {
+        try {
+          const parsed = JSON.parse(siblings);
+          if (Array.isArray(parsed)) parsedSiblings = parsed;
+        } catch {
+          parsedSiblings = [];
+        }
+      }
+    }
+
+    // Work preferences
+    const candidateGender = gender || 'groom';
+    const resolvedGroomPref = groomWorkPreference || (candidateGender === 'groom' ? workPreference : '') || 'need_working';
+    const resolvedBrideStatus = brideWorkStatus || (candidateGender === 'bride' ? workPreference : '') || 'will_work';
 
     // Construct new user with direct active status (KYC removed entirely)
     const newUser = await createUser({
@@ -220,16 +295,17 @@ export const register = async (req, res) => {
       fullNameEn: resolvedNameEn || resolvedName,
       email: resolvedEmail,
       password,
-      phone: cleanPhone,
+      phone: finalPhone,
+      countryCode: resolvedCountryCode,
       additionalPhones: parsedAdditionalPhones,
-      gender: gender || 'groom',
+      gender: candidateGender,
       age: Number(age) || 25,
       maritalStatus: maritalStatus || 'Un married',
       education: education || '',
       occupation: occupation || '',
       location: resolvedLocation,
       district: resolvedDistrict,
-      state: state || 'Tamil Nadu',
+      state: resolvedState,
       language: language || 'Tamil-Muslim',
       monthlyIncome: resolvedIncome,
       incomeNum: Number(incomeNum) || 0,
@@ -240,6 +316,7 @@ export const register = async (req, res) => {
       description: resolvedDescription,
       bio: resolvedDescription,
       workplace: workplace || '',
+      workingYearsInTitleLocation: (workingYearsInTitleLocation || '').trim(),
       nativePlace: nativePlace || resolvedLocation,
       currentAddress: currentAddress || '',
       livingYears: livingYears || '',
@@ -254,12 +331,14 @@ export const register = async (req, res) => {
       minimumActiveUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
 
       familyDetails: {
-        fatherName: fatherName || '',
+        fatherName: (fatherName || '').trim(),
         fatherAge: Number(fatherAge) || 55,
-        fatherOccupation: fatherOccupation || '',
-        motherName: motherName || '',
+        fatherOccupation: (fatherOccupation || '').trim(),
+        motherName: (motherName || '').trim(),
         motherAge: Number(motherAge) || 50,
-        siblingsCount: Number(siblingsCount) || 0,
+        motherOccupation: (motherOccupation || '').trim(),
+        siblingsCount: parsedSiblings.length || Number(siblingsCount) || 0,
+        siblings: parsedSiblings,
         siblingDetails: {
           elderSister: elderSister || 'இல்லை',
           youngerSister: youngerSister || 'இல்லை',
@@ -269,13 +348,15 @@ export const register = async (req, res) => {
       },
 
       workPreferences: {
-        brideWorkStatus: brideWorkStatus || 'will_work',
-        groomWorkPreference: groomWorkPreference || 'working_bride',
+        brideWorkStatus: resolvedBrideStatus,
+        groomWorkPreference: resolvedGroomPref,
+        preferenceOption: (workPreference || '').trim(),
+        preferenceText: (candidateGender === 'groom' ? resolvedGroomPref : resolvedBrideStatus),
       },
 
-      isOverseas: Boolean(isOverseas === 'true' || isOverseas === true),
-      citizenship: citizenship || 'Indian Citizen',
-      countryOfResidence: countryOfResidence || 'India',
+      isOverseas: isCandidateOverseas,
+      citizenship: (citizenship || (isCandidateOverseas ? 'Other Foreign Citizen' : 'Indian Citizen')).trim(),
+      countryOfResidence: (countryOfResidence || (isCandidateOverseas ? 'Singapore' : 'India')).trim(),
 
       // Profile starts as pending until admin approves it
       isVerified: false,
@@ -344,12 +425,19 @@ export const login = async (req, res) => {
       nikahIds.push(nikahClean.slice(0, 2) + '-' + nikahClean.slice(2));
     }
 
+    if (cleanId.startsWith('+')) {
+      phones.push(`+${digits}`);
+      phones.push(cleanId);
+    }
+
     // Phone variations if digits present
     if (digits.length >= 10) {
       const last10 = digits.slice(-10);
       phones.push(last10, `+91${last10}`, `+91 ${last10}`, `+91-${last10}`, `0${last10}`, `91${last10}`);
-    } else if (digits.length > 0) {
+    }
+    if (digits.length > 0) {
       phones.push(digits);
+      phones.push(`+${digits}`);
     }
 
     // Search by email, phone, additionalPhones, or Nikah ID
@@ -486,10 +574,10 @@ export const updateMe = async (req, res) => {
       'fullName', 'fullNameEn', 'dateOfBirth', 'age', 'gender', 'maritalStatus', 'maritalStatusEn',
       'height', 'heightEn', 'weight', 'weightEn', 'complexion', 'complexionEn', 'language', 'motherTongue', 'motherTongueEn',
       'location', 'nativePlace', 'nativePlaceEn', 'district', 'state', 'stateEn', 'citizenship', 'citizenshipEn',
-      'workplace', 'workplaceEn',
+      'workplace', 'workplaceEn', 'workingYearsInTitleLocation', 'countryOfResidence', 'isOverseas',
       'education', 'educationEn', 'occupation', 'profession', 'professionEn', 'monthlyIncome', 'income', 'incomeEn',
       'property', 'propertyEn', 'properties', 'propertiesEn', 'requirement', 'requirementEn', 'bio', 'description',
-      'publisherName', 'publisherRelationship'
+      'publisherName', 'publisherRelationship', 'countryCode'
     ];
 
     allowedFields.forEach((field) => {
@@ -499,6 +587,9 @@ export const updateMe = async (req, res) => {
         user[field] = value;
       }
     });
+    if (req.body.isOverseas !== undefined) {
+      user.isOverseas = req.body.isOverseas === 'true' || req.body.isOverseas === true;
+    }
     if (req.body.age !== undefined && !Number.isNaN(Number(req.body.age))) {
       user.age = Number(req.body.age);
     }
@@ -542,6 +633,48 @@ export const updateMe = async (req, res) => {
         name: req.body.publisherName !== undefined ? req.body.publisherName.trim() : (user.publisher?.name || user.fullName),
         relationship: req.body.publisherRelationship !== undefined ? req.body.publisherRelationship.trim() : (user.publisher?.relationship || 'Self'),
       };
+    }
+
+    // Family Details update
+    if (req.body.familyDetails) {
+      try {
+        const fam = typeof req.body.familyDetails === 'string' ? JSON.parse(req.body.familyDetails) : req.body.familyDetails;
+        user.familyDetails = { ...(user.familyDetails || {}), ...fam };
+      } catch (e) {}
+    } else {
+      user.familyDetails = user.familyDetails || {};
+      if (req.body.fatherName !== undefined) user.familyDetails.fatherName = req.body.fatherName.trim();
+      if (req.body.fatherAge !== undefined) user.familyDetails.fatherAge = Number(req.body.fatherAge) || user.familyDetails.fatherAge;
+      if (req.body.fatherOccupation !== undefined) user.familyDetails.fatherOccupation = req.body.fatherOccupation.trim();
+      if (req.body.motherName !== undefined) user.familyDetails.motherName = req.body.motherName.trim();
+      if (req.body.motherAge !== undefined) user.familyDetails.motherAge = Number(req.body.motherAge) || user.familyDetails.motherAge;
+      if (req.body.motherOccupation !== undefined) user.familyDetails.motherOccupation = req.body.motherOccupation.trim();
+      if (req.body.siblings !== undefined) {
+        try {
+          const s = typeof req.body.siblings === 'string' ? JSON.parse(req.body.siblings) : req.body.siblings;
+          if (Array.isArray(s)) {
+            user.familyDetails.siblings = s;
+            user.familyDetails.siblingsCount = s.length;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Work Preferences update
+    if (req.body.workPreferences) {
+      try {
+        const wp = typeof req.body.workPreferences === 'string' ? JSON.parse(req.body.workPreferences) : req.body.workPreferences;
+        user.workPreferences = { ...(user.workPreferences || {}), ...wp };
+      } catch (e) {}
+    } else if (req.body.workPreference || req.body.brideWorkStatus || req.body.groomWorkPreference) {
+      user.workPreferences = user.workPreferences || {};
+      if (req.body.workPreference) user.workPreferences.preferenceOption = req.body.workPreference;
+      if (req.body.brideWorkStatus) user.workPreferences.brideWorkStatus = req.body.brideWorkStatus;
+      if (req.body.groomWorkPreference) user.workPreferences.groomWorkPreference = req.body.groomWorkPreference;
+      if (req.body.workPreference) {
+        if (user.gender === 'groom') user.workPreferences.groomWorkPreference = req.body.workPreference;
+        if (user.gender === 'bride') user.workPreferences.brideWorkStatus = req.body.workPreference;
+      }
     }
 
     // Handle existing photos that the user kept
@@ -616,6 +749,7 @@ export const updateMe = async (req, res) => {
         district: user.district,
         nativePlace: user.nativePlace,
         workplace: user.workplace,
+        workingYearsInTitleLocation: user.workingYearsInTitleLocation || '',
         height: user.height,
         education: user.education,
         occupation: user.occupation,
@@ -628,6 +762,11 @@ export const updateMe = async (req, res) => {
         bio: user.description || user.bio,
         requirement: user.requirement,
         publisher: user.publisher,
+        familyDetails: user.familyDetails,
+        workPreferences: user.workPreferences,
+        isOverseas: Boolean(user.isOverseas),
+        citizenship: user.citizenship || 'Indian Citizen',
+        countryOfResidence: user.countryOfResidence || 'India',
         photos: user.photos,
         audioClip: user.audioClip,
         subscriptionStatus: user.subscriptionStatus,
@@ -645,6 +784,200 @@ export const updateMe = async (req, res) => {
     res.status(500).json({
       success: false,
       message: err.message || 'Error updating profile.',
+    });
+  }
+};
+
+/**
+ * 1. Forgot Password - Sends 6-digit OTP via Email
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { identifier, email: providedEmail } = req.body;
+    if (!identifier || !String(identifier).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your registered email, mobile number, or Nikah ID.',
+      });
+    }
+
+    const cleanId = String(identifier).trim();
+    const idNoSpaces = cleanId.replace(/\s+/g, '');
+    const nikahClean = cleanId.toUpperCase().replace(/\s+/g, '');
+    const digits = cleanId.replace(/\D/g, '');
+
+    const emails = [cleanId.toLowerCase(), idNoSpaces.toLowerCase()];
+    const nikahIds = [cleanId.toUpperCase(), nikahClean];
+    const phones = [cleanId, idNoSpaces];
+
+    if (/^[A-Za-z]{2}\d+$/.test(nikahClean)) {
+      nikahIds.push(nikahClean.slice(0, 2) + '-' + nikahClean.slice(2));
+    }
+    if (cleanId.startsWith('+')) {
+      phones.push(`+${digits}`);
+      phones.push(cleanId);
+    }
+    if (digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      phones.push(last10, `+91${last10}`, `+91 ${last10}`, `+91-${last10}`, `0${last10}`, `91${last10}`);
+    }
+    if (digits.length > 0) {
+      phones.push(digits);
+      phones.push(`+${digits}`);
+    }
+
+    const user = await findUserByIdentifiers({ emails, phones, nikahIds });
+    if (!user) {
+      return res.json({
+        success: false,
+        message: 'No account found with this email, mobile number, or Nikah ID. Please check and try again.',
+      });
+    }
+
+    // Prefer the profile email. Ask for one only when the profile has no real email.
+    let targetEmail = user.email?.trim().toLowerCase();
+    if (!targetEmail || targetEmail.endsWith('@tamilnikah.com')) {
+      targetEmail = String(providedEmail || '').trim().toLowerCase();
+    }
+    if (!targetEmail) {
+      return res.json({
+        success: false,
+        needsEmailInput: true,
+        message: 'This profile does not have a registered email address. Enter an email address to receive the password reset OTP.',
+      });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      return res.status(400).json({
+        success: false,
+        needsEmailInput: true,
+        message: 'Please enter a valid email address to receive the password reset OTP.',
+      });
+    }
+
+    // Save the recovery email only when the profile previously had no real email.
+    if (!user.email || user.email.trim().toLowerCase().endsWith('@tamilnikah.com')) {
+      user.email = targetEmail;
+      await updateUser(user, user);
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store in user record
+    await setResetOtp(user._id, otp, expiresAt);
+
+    // Send via Email
+    const mailResult = await sendPasswordResetOtpEmail(user, otp);
+    if (!mailResult?.success && !mailResult?.mocked) {
+      console.warn('[Forgot Password] Mailer error:', mailResult?.error);
+      await setResetOtp(user._id, '', new Date(0));
+      return res.status(502).json({
+        success: false,
+        message: 'Could not send the password reset email. Please try again later.',
+      });
+    }
+
+    // Mask email for user privacy (e.g. a*****h@gmail.com)
+    const [localPart, domainPart] = targetEmail.split('@');
+    const maskedEmail =
+      localPart.length > 2
+        ? `${localPart.charAt(0)}${'*'.repeat(Math.max(3, Math.min(6, localPart.length - 2)))}${localPart.slice(-1)}@${domainPart || ''}`
+        : `${localPart.charAt(0)}*@${domainPart || ''}`;
+
+    res.json({
+      success: true,
+      message: `A 6-digit OTP verification code has been sent to your email (${maskedEmail}).`,
+      userId: user._id,
+      emailMasked: maskedEmail,
+      emailSent: true,
+    });
+  } catch (err) {
+    console.error('[Forgot Password Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Error sending password reset OTP.',
+    });
+  }
+};
+
+/**
+ * 2. Verify Email OTP
+ */
+export const verifyResetOtpHandler = async (req, res) => {
+  try {
+    const { userId, otp } = req.body;
+    if (!userId || !otp) {
+      return res.json({
+        success: false,
+        message: 'User ID and OTP are required.',
+      });
+    }
+
+    const isValid = await verifyResetOtp(userId, String(otp).trim());
+    if (!isValid) {
+      return res.json({
+        success: false,
+        message: 'Invalid or expired OTP. Please check the code sent to your email and try again.',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP verified successfully. You may now enter your new password.',
+    });
+  } catch (err) {
+    console.error('[Verify OTP Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP.',
+    });
+  }
+};
+
+/**
+ * 3. Reset Password with verified OTP
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { userId, otp, newPassword } = req.body;
+    if (!userId || !newPassword) {
+      return res.json({
+        success: false,
+        message: 'User ID and new password are required.',
+      });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.json({
+        success: false,
+        message: 'Password must be at least 6 characters.',
+      });
+    }
+
+    // Verify OTP state
+    const isVerified = await checkResetOtpVerified(userId);
+    if (!isVerified) {
+      const isValid = await verifyResetOtp(userId, String(otp || '').trim());
+      if (!isValid) {
+        return res.json({
+          success: false,
+          message: 'OTP verification expired or invalid. Please request a new OTP.',
+        });
+      }
+    }
+
+    await setUserPassword(userId, String(newPassword));
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully! You can now log in with your new password.',
+    });
+  } catch (err) {
+    console.error('[Reset Password Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to update password.',
     });
   }
 };

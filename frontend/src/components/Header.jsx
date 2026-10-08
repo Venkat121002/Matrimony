@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaGlobe, FaChevronDown, FaUser, FaSignOutAlt } from 'react-icons/fa';
+import { FaGlobe, FaChevronDown, FaUser, FaSignOutAlt, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Header({
@@ -7,6 +7,7 @@ export default function Header({
   currentUser,
   onOpenLogin,
   onOpenRegister,
+  onOpenOverseasRegister,
   onOpenAdmin,
   onOpenUpgrade,
   onOpenSupport,
@@ -123,11 +124,10 @@ export default function Header({
                   {translateName(!isTamil ? (currentUser.fullNameEn || currentUser.fullName || currentUser.name) : (currentUser.fullName || currentUser.name))}
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold border ${
-                    currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
+                  className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold border ${currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
                       ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-gray-950 border-amber-300 shadow-sm'
                       : 'bg-[#163828]/80 text-[#ecd08c] border-[#caa85d]/60 shadow-xs'
-                  }`}
+                    }`}
                 >
                   {currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
                     ? (isTamil ? 'சந்தா (Subscribed)' : 'Subscribed')
@@ -171,8 +171,19 @@ export default function Header({
                 onClick={onOpenRegister}
                 className="px-3 py-1.5 rounded-md bg-[#25583f] hover:bg-[#317051] text-[#fff7d6] border border-[#caa85d] font-bold text-xs shadow"
               >
-                {isTamil ? 'இலவச பதிவு' : 'Register Free'}
+                {isTamil ? 'பதிவு' : 'Register'}
               </button>
+              {onOpenOverseasRegister && (
+                <button
+                  type="button"
+                  onClick={onOpenOverseasRegister}
+                  className="px-2.5 py-1.5 rounded-md bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-200 font-extrabold text-xs shadow flex items-center gap-1 transition-transform hover:scale-105"
+                  title={isTamil ? 'வெளிநாட்டு வரன்களுக்கான தனி பதிவு' : 'Register for Foreign / Overseas candidates'}
+                >
+                  <span>🌍</span>
+                  <span>{isTamil ? 'வெளிநாட்டு பதிவு' : 'Overseas Register'}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onOpenSupport}
@@ -188,10 +199,23 @@ export default function Header({
       {/* Bottom Gold Strip */}
       <div className="w-full bg-gradient-to-r from-[#8a6d2f] via-[#edd48e] to-[#8a6d2f] py-1 px-3 border-t border-[#f4e2ab] text-[#2b1b04] font-medium text-xs sm:text-sm shadow-inner">
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          {/* Work Hours */}
-          <div className="flex items-center gap-1.5 font-bold">
-            <span className="inline-block w-2 h-2 rounded-full bg-[#163828] animate-pulse"></span>
-            <span>{t('workHours')}</span>
+          {/* Work Hours & WhatsApp */}
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 font-bold text-xs sm:text-sm">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-[#163828] animate-pulse"></span>
+              <span>{t('workHours')}</span>
+            </div>
+            <span className="text-[#644917] hidden sm:inline">•</span>
+            <a
+              href="https://wa.me/919171896625"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#163828] hover:bg-[#204e38] text-white hover:text-amber-200 transition shadow-xs text-xs font-bold border border-[#caa85d]/60"
+              title="WhatsApp: 9171896625"
+            >
+              <FaWhatsapp className="text-emerald-400 text-sm" />
+              <span>WhatsApp : 9171896625</span>
+            </a>
           </div>
 
           {/* Select Language */}
@@ -219,9 +243,8 @@ export default function Header({
                       setLanguage(lang.code);
                       setShowLangMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[#fff7e6] transition flex items-center justify-between ${
-                      language === lang.code ? 'font-bold text-[#8a6d2f] bg-[#fbf5e6]' : 'text-gray-800'
-                    }`}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[#fff7e6] transition flex items-center justify-between ${language === lang.code ? 'font-bold text-[#8a6d2f] bg-[#fbf5e6]' : 'text-gray-800'
+                      }`}
                   >
                     <span>{lang.label}</span>
                     {language === lang.code && <span>✓</span>}

@@ -29,7 +29,7 @@ export const translations = {
     // Login Box
     loginTitle: 'உள்நுழைவு',
     username: 'Username',
-    phonePlaceholder: 'தொலைபேசி எண்',
+    phonePlaceholder: '',
     password: 'Password',
     passwordLabel: 'கடவுச்சொல்',
     loginBtn: 'உள்நுழைக',
@@ -38,7 +38,7 @@ export const translations = {
     videoGuide: 'வீடியோ',
     noLoginId: 'கணக்கு இல்லையா?',
     registerHere: 'இங்கே பதிவு செய்யவும்',
-    registerFree: 'இலவச பதிவு',
+    registerFree: 'பதிவு',
     helpDesk: 'உதவி மையம்',
 
     // Menu Dropdown
@@ -325,7 +325,7 @@ export const translations = {
 
     // Banner
     bannerText: 'Respected Islamic Brothers & Sisters! Register new bride and groom profile details here completely free.',
-    bannerBtn: 'Register Here Free',
+    bannerBtn: 'Register',
     bannerOverseasBtn: '🌍 Overseas Tamil Citizen Registration',
 
     // Login Box
@@ -340,7 +340,7 @@ export const translations = {
     videoGuide: 'Video Guide',
     noLoginId: "Don't have a Login ID?",
     registerHere: 'Register Here',
-    registerFree: 'Register Free',
+    registerFree: 'Register',
     helpDesk: 'Help Desk',
 
     // Menu Dropdown
@@ -616,6 +616,24 @@ export const profileValueTranslations = {
   'மணமகள்': { ta: 'மணமகள்', en: 'Bride' },
   'Groom': { ta: 'மணமகன்', en: 'Groom' },
   'Bride': { ta: 'மணமகள்', en: 'Bride' },
+
+  // Work Preferences (Groom & Bride)
+  'need_working': { ta: 'பணிபுரியும் மணமகள் தேவை', en: 'I need a bride who will work' },
+  'need_homemaker': { ta: 'பணிபுரியாத இல்லத்தரசி மணமகள் தேவை', en: "I need a bride who doesn't work (Homemaker)" },
+  'work_if_allowed': { ta: 'அனுமதித்தால் பணிபுரியும் மணமகள் / பணிபுரிவேன்', en: 'Work if allowed by spouse and family' },
+  'will_work': { ta: 'நான் பணிபுரிவேன்', en: 'I will work' },
+  'wont_work': { ta: 'நான் பணிபுரிய மாட்டேன் (இல்லத்தரசி)', en: "I won't work (Homemaker)" },
+  'I need a bride who will work': { ta: 'பணிபுரியும் மணமகள் தேவை', en: 'I need a bride who will work' },
+  "I need a bride who doesn't work": { ta: 'பணிபுரியாத இல்லத்தரசி மணமகள் தேவை', en: "I need a bride who doesn't work" },
+  "I need a bride who doesn't work (Homemaker)": { ta: 'பணிபுரியாத இல்லத்தரசி மணமகள் தேவை', en: "I need a bride who doesn't work (Homemaker)" },
+  'I need a bride who will work if I allow': { ta: 'நான் அனுமதித்தால் பணிபுரியும் மணமகள்', en: 'I need a bride who will work if I allow' },
+  'I will work': { ta: 'நான் பணிபுரிவேன்', en: 'I will work' },
+  "I won't work": { ta: 'நான் பணிபுரிய மாட்டேன் (இல்லத்தரசி)', en: "I won't work" },
+  "I won't work (Homemaker)": { ta: 'நான் பணிபுரிய மாட்டேன் (இல்லத்தரசி)', en: "I won't work (Homemaker)" },
+  'I will work if allowed': { ta: 'அனுமதித்தால் பணிபுரிவேன்', en: 'I will work if allowed' },
+  'Homemaker': { ta: 'இல்லத்தரசி', en: 'Homemaker' },
+  'Working': { ta: 'பணிபுரிகிறார்', en: 'Working' },
+  'Employed': { ta: 'பணியில் உள்ளார்', en: 'Employed' },
 
   // Marital Status
   'திருமணம் ஆகாதவர்': { ta: 'திருமணம் ஆகாதவர்', en: 'Unmarried' },
@@ -1539,6 +1557,13 @@ export function LanguageProvider({ children }) {
     return transliterateName(trimmed, targetLang);
   };
 
+  /**
+   * Translates matrimonial work preferences into Tamil or English
+   */
+  const translateWorkPreferenceFn = (val, isGroom = false) => {
+    return translateWorkPreference(val, language === 'ta', isGroom);
+  };
+
   return (
     <LanguageContext.Provider
       value={{
@@ -1547,6 +1572,7 @@ export function LanguageProvider({ children }) {
         t,
         translateValue,
         translateName,
+        translateWorkPreference: translateWorkPreferenceFn,
         isTamil: language === 'ta',
         isEnglish: language === 'en',
       }}
@@ -1555,6 +1581,94 @@ export function LanguageProvider({ children }) {
     </LanguageContext.Provider>
   );
 }
+
+export const translateWorkPreference = (val, isTamil = true, isGroom = false) => {
+  if (!val) {
+    return isTamil
+      ? (isGroom ? 'விருப்பம் குறிப்பிடப்படவில்லை' : 'நிலை குறிப்பிடப்படவில்லை')
+      : 'Not specified';
+  }
+  const raw = String(val).trim();
+  const lower = raw.toLowerCase();
+
+  // Groom choices
+  if (
+    lower === 'need_working' ||
+    lower.includes('need a bride who will work') ||
+    lower.includes('bride who will work') ||
+    lower === 'employed' ||
+    lower === 'working'
+  ) {
+    return isTamil ? 'பணிபுரியும் மணமகள் தேவை' : 'I need a bride who will work';
+  }
+  if (
+    lower === 'need_homemaker' ||
+    lower.includes("doesn't work") ||
+    lower.includes('does not work') ||
+    lower === 'homemaker' ||
+    lower === 'home maker'
+  ) {
+    return isTamil
+      ? 'பணிபுரியாத இல்லத்தரசி மணமகள் தேவை'
+      : "I need a bride who doesn't work (Homemaker)";
+  }
+
+  // Bride choices
+  if (
+    lower === 'will_work' ||
+    lower.includes('i will work') ||
+    lower.includes('will work after marriage')
+  ) {
+    return isTamil ? 'நான் பணிபுரிவேன்' : 'I will work';
+  }
+  if (
+    lower === 'wont_work' ||
+    lower === "won't work" ||
+    lower.includes("won't work") ||
+    lower.includes('will not work')
+  ) {
+    return isTamil
+      ? 'நான் பணிபுரிய மாட்டேன் (இல்லத்தரசி)'
+      : "I won't work (Homemaker)";
+  }
+
+  // Reciprocal / Allowed
+  if (
+    lower === 'work_if_allowed' ||
+    lower.includes('work if allowed') ||
+    lower.includes('if i allow') ||
+    lower.includes('if allowed')
+  ) {
+    if (isGroom) {
+      return isTamil
+        ? 'நான் அனுமதித்தால் பணிபுரியும் மணமகள்'
+        : 'I need a bride who will work if I allow';
+    }
+    return isTamil ? 'அனுமதித்தால் பணிபுரிவேன்' : 'I will work if allowed';
+  }
+
+  // Tamil to English reverse mapping
+  if (raw.includes('பணிபுரியும் மணமகள் தேவை')) {
+    return isTamil ? raw : 'I need a bride who will work';
+  }
+  if (raw.includes('இல்லத்தரசி மணமகள் தேவை') || raw.includes('பணிபுரியாத இல்லத்தரசி')) {
+    return isTamil ? raw : "I need a bride who doesn't work (Homemaker)";
+  }
+  if (raw.includes('நான் அனுமதித்தால் பணிபுரியும் மணமகள்')) {
+    return isTamil ? raw : 'I need a bride who will work if I allow';
+  }
+  if (raw.includes('நான் பணிபுரிவேன்')) {
+    return isTamil ? raw : 'I will work';
+  }
+  if (raw.includes('பணிபுரிய மாட்டேன்')) {
+    return isTamil ? raw : "I won't work (Homemaker)";
+  }
+  if (raw.includes('அனுமதித்தால் பணிபுரிவேன்')) {
+    return isTamil ? raw : 'I will work if allowed';
+  }
+
+  return raw;
+};
 
 export const translateName = (name, targetLang = 'ta') => {
   return transliterateName(name, targetLang);

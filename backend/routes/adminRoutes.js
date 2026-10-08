@@ -11,8 +11,15 @@ import {
   updateUserSubscription,
   deleteUser,
   triggerMatches,
+  getSubscriptionSettings,
+  updateSubscriptionSettings,
 } from '../controllers/adminController.js';
-import { getAllTickets, updateTicket } from '../controllers/supportController.js';
+import {
+  getAllTickets,
+  updateTicket,
+  deleteTicket,
+  clearResolvedTickets,
+} from '../controllers/supportController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { requireAdmin } from '../middleware/adminMiddleware.js';
 import { getAdminSecretKey } from '../config/secrets.js';
@@ -47,6 +54,10 @@ router.get('/verify', (req, res) => {
 // Dashboard overview
 router.get('/stats', getDashboardStats);
 
+// Subscription and Feature Customization Settings
+router.get('/subscription-settings', getSubscriptionSettings);
+router.put('/subscription-settings', updateSubscriptionSettings);
+
 // Verification Queue (approve / reject pending registrations)
 router.get('/verifications', getVerificationQueue);
 router.put('/verifications/:id/approve', approveVerification);
@@ -65,5 +76,7 @@ router.delete('/users/:id', deleteUser);
 // Support tickets in admin panel
 router.get('/tickets', getAllTickets);
 router.put('/tickets/:id', updateTicket);
+router.delete('/tickets/resolved/clear', clearResolvedTickets);
+router.delete('/tickets/:id', deleteTicket);
 
 export default router;

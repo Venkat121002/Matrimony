@@ -1,8 +1,15 @@
 import React from 'react';
-import { FaUserTie, FaFemale, FaUsers } from 'react-icons/fa';
+import { FaUserTie, FaFemale, FaUsers, FaGlobe } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function GenderRadioBar({ selectedGender, onChangeGender, onGenderChange, currentUser }) {
+export default function GenderRadioBar({
+  selectedGender,
+  onChangeGender,
+  onGenderChange,
+  currentUser,
+  isForeignView,
+  onToggleForeignView,
+}) {
   // If user is logged in, completely remove the selection navbar as required
   if (currentUser) {
     return null;
@@ -26,15 +33,20 @@ export default function GenderRadioBar({ selectedGender, onChangeGender, onGende
           <span className="font-extrabold text-[#f3dd9b] whitespace-nowrap">{t('genderLabel')}</span>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-6 flex-wrap flex-1 justify-center sm:justify-start">
+        <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap flex-1 justify-center sm:justify-start">
           {options.map((option) => {
             const Icon = option.icon;
-            const isSelected = selectedGender === option.value;
+            const isSelected = selectedGender === option.value && !isForeignView;
             return (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => handleChange(option.value)}
+                onClick={() => {
+                  if (isForeignView && onToggleForeignView) {
+                    onToggleForeignView(false);
+                  }
+                  handleChange(option.value);
+                }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full cursor-pointer select-none transition-all ${
                   isSelected
                     ? 'bg-[#caa85d] text-[#163828] font-black shadow-md'
@@ -46,6 +58,22 @@ export default function GenderRadioBar({ selectedGender, onChangeGender, onGende
               </button>
             );
           })}
+
+          {/* Foreign Only Users Toggle Button */}
+          {onToggleForeignView && (
+            <button
+              type="button"
+              onClick={() => onToggleForeignView(!isForeignView)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full cursor-pointer select-none transition-all ml-auto ${
+                isForeignView
+                  ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-gray-950 font-black shadow-lg border border-amber-200 scale-105'
+                  : 'bg-amber-950/40 text-amber-200 hover:text-white hover:bg-amber-900/60 font-semibold border border-amber-500/40'
+              }`}
+            >
+              <FaGlobe className={`text-xs ${isForeignView ? 'text-gray-950 animate-spin' : 'text-amber-300'}`} />
+              <span>{isTamil ? '🌍 வெளிநாட்டு வரன்கள் மட்டும்' : '🌍 Foreign Profiles Only'}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

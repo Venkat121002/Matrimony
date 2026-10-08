@@ -34,3 +34,17 @@ export const updateTicket = async (ticket, patch) => {
   Object.assign(ticket, data);
   return ticket;
 };
+
+export const deleteTicketById = async (id) => {
+  if (!id || typeof id !== 'string' || id.includes('/')) return false;
+  await ticketsCol.doc(id).delete();
+  return true;
+};
+
+export const deleteResolvedTickets = async () => {
+  const snap = await ticketsCol.where('status', '==', 'resolved').get();
+  const batch = db.batch();
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+};

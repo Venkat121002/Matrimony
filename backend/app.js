@@ -43,7 +43,7 @@ app.get('/uploads/media/:filename', async (req, res, next) => {
       'Content-Disposition': 'inline',
       'Cache-Control': 'public, max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
-    });
+    }, req);
     if (!found) res.status(404).json({ success: false, message: 'File not found.' });
   } catch (err) {
     next(err);

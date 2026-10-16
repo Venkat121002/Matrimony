@@ -531,6 +531,12 @@ const wordDictionary = {
   nilgiris: 'நீலகிரி',
   ooty: 'ஊட்டி',
   vanakkam: 'வணக்கம்',
+  tamil: 'தமிழ்',
+  kalyanam: 'கல்யாணம்',
+  amma: 'அம்மா',
+  appa: 'அப்பா',
+  kudumbam: 'குடும்பம்',
+  nikkah: 'நிக்காஹ்',
   doctor: 'மருத்துவர்',
   engineer: 'பொறியாளர்',
   teacher: 'ஆசிரியர்',
@@ -614,6 +620,9 @@ const consonants = {
   l: 'ல',
   L: 'ல',  // Capital L in names is 'ல' (e.g. Lalpet -> லால்பேட்டை, NOT ள)
   ll: 'ள',
+  v: 'வ',
+  w: 'வ',
+  x: 'க்ஸ',
   zh: 'ழ',
   z: 'ஜ',  // Default z in names is 'ஜ' (Zakir, Zainab); contextually 'ஸ்' at word end
   sh: 'ஷ',
@@ -846,7 +855,7 @@ export const transliterateWord = (word) => {
  */
 export const transliterateSentence = (text) => {
   if (!text) return '';
-  const parts = text.split(/(\s+|\.)/);
+  const parts = text.split(/(\s+|[.,!?;:]+)/);
   return parts
     .map((part) => {
       if (!part || /^[\s.]+$/.test(part)) return part;

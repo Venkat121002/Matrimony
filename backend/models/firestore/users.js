@@ -42,9 +42,11 @@ const userDefaults = () => ({
     fatherName: '',
     fatherAge: 55,
     fatherOccupation: '',
+    fatherMarhum: false,
     motherName: '',
     motherAge: 50,
     motherOccupation: '',
+    motherMarhum: false,
     siblingsCount: 0,
     siblings: [],
     siblingDetails: {
@@ -216,7 +218,18 @@ export const updateUser = async (user, patch) => {
   return user;
 };
 
-export const deleteUserById = (id) => usersCol.doc(id).delete();
+export const deleteUserById = async (id) => {
+  if (!id) return;
+  const docRef = usersCol.doc(String(id));
+  const doc = await docRef.get();
+  if (doc.exists) {
+    return docRef.delete();
+  }
+  const snap = await usersCol.where('nikahId', '==', String(id)).limit(1).get();
+  if (!snap.empty) {
+    return snap.docs[0].ref.delete();
+  }
+};
 
 export const addToShortlist = (userId, targetId) =>
   usersCol.doc(userId).update({ shortlistedProfiles: FieldValue.arrayUnion(targetId), updatedAt: new Date() });

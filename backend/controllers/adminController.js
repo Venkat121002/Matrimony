@@ -3,6 +3,7 @@ import {
   findUsers,
   countUsers,
   getUserById,
+  findUserByNikahId,
   updateUser,
   deleteUserById,
   byCreatedDesc,
@@ -360,20 +361,20 @@ export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await getUserById(id);
+    const user = (await getUserById(id)) || (await findUserByNikahId(id));
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Remove the user's stored media and KYC document from Cloud Storage
+    // Remove the user's stored media and KYC document from Cloud Storage / local disk
     const mediaFiles = [...(user.photos || []), user.audioClip?.url].filter(
       (u) => typeof u === 'string' && u.startsWith('/uploads/media/')
     );
     await Promise.all([
       ...mediaFiles.map((u) => deleteStoredFile('media', path.basename(u)).catch(() => {})),
       user.kycDocument?.filename ? deleteStoredFile('kyc', user.kycDocument.filename).catch(() => {}) : null,
-      deleteViewsForUser(id).catch(() => {}),
+      deleteViewsForUser(String(user._id)).catch(() => {}),
     ]);
 
-    await deleteUserById(id);
+    await deleteUserById(user._id);
 
     res.json({
       success: true,

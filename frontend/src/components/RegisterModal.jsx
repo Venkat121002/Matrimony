@@ -23,15 +23,20 @@ import {
   FaClock,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
-import TamilInput from './TamilInput';
+import TamilInputBase from './TamilInput';
 import LiveAudioRecorder from './LiveAudioRecorder';
 import CountryCodeSelect from './CountryCodeSelect';
 import { TAMIL_NADU_DISTRICTS, DISTRICT_MAP } from '../data/districts';
 import {
   OVERSEAS_CITIES,
   getCallingCodeForCountry,
+  getMaxDigitsForDialCode,
 } from '../data/countryCodes';
 import { transliterateSentence } from '../utils/tamilTransliterate';
+
+const TamilInput = (props) => {
+  return <TamilInputBase {...props} showInputTools={props.showInputTools ?? false} />;
+};
 
 export default function RegisterModal({
   isOpen,
@@ -46,6 +51,7 @@ export default function RegisterModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [popupAlert, setPopupAlert] = useState(null); // Pop up alert for errors / missing inputs
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   const formRef = useRef(null);
   const mouseDownTargetRef = useRef(null);
 
@@ -61,6 +67,9 @@ export default function RegisterModal({
 
   useEffect(() => {
     if (isOpen) {
+      setPopupAlert(null);
+      setErrorMsg('');
+      setShowValidationErrors(false);
       const overseasMode = Boolean(initialIsOverseas);
       setIsOverseas(overseasMode);
       const defaultCode = overseasMode ? '+65' : '+91';
@@ -95,7 +104,15 @@ export default function RegisterModal({
   const showPopupAlert = (title, message, type = 'error', targetField = '') => {
     setPopupAlert({ title, message, type, targetField });
     setErrorMsg(message);
+    setShowValidationErrors(true);
+    if (targetField) {
+      const field =
+        document.getElementById(`reg-${targetField}`) ||
+        document.getElementsByName(targetField)[0];
+      field?.classList.add('registration-field-invalid');
+    }
     if (formRef.current) {
+      formRef.current.classList.add('show-validation-errors');
       formRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -132,7 +149,7 @@ export default function RegisterModal({
     phone: '',
     additionalPhones: [''], // Option to add multiple mobile numbers
 
-    // Email Address (Optional)
+    // Required email address
     email: '',
 
     // Password
@@ -142,7 +159,7 @@ export default function RegisterModal({
     age: '26',
 
     // Education
-    education: 'B.E / B.Tech',
+    education: '',
 
     // Marital Status (Un married, Divorced, Applied for divorce, Bereaved of a partner, Additional Marriage)
     maritalStatus: 'Un married',
@@ -171,13 +188,19 @@ export default function RegisterModal({
     // Properties
     properties: '',
 
+    // Current Residing Address & Duration
+    currentAddress: '',
+    livingYears: '',
+
     // Family Details: Parents
     fatherName: '',
     fatherAge: '55',
     fatherOccupation: '',
+    fatherMarhum: false,
     motherName: '',
     motherAge: '50',
     motherOccupation: '',
+    motherMarhum: false,
 
     // Work Preference: Reciprocal Options
     // Groom options: need_working | need_homemaker | work_if_allowed
@@ -417,6 +440,26 @@ export default function RegisterModal({
       return false;
     }
 
+    if (!formData.email.trim()) {
+      showPopupAlert(
+        isTamil ? 'மின்னஞ்சல் முகவரி தேவை!' : 'Email Address Required!',
+        isTamil ? 'மின்னஞ்சல் முகவரியை உள்ளிடவும்.' : 'Please enter an email address.',
+        'error',
+        'email'
+      );
+      return false;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      showPopupAlert(
+        isTamil ? 'சரியான மின்னஞ்சல் முகவரி தேவை!' : 'Valid Email Address Required!',
+        isTamil ? 'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்.' : 'Please enter a valid email address.',
+        'error',
+        'email'
+      );
+      return false;
+    }
+
     const cleanP = formData.phone.trim().replace(/\D/g, '');
     const minPhoneLen = isOverseas ? 7 : 10;
     if (!formData.phone.trim() || cleanP.length < minPhoneLen) {
@@ -483,6 +526,7 @@ export default function RegisterModal({
     e.preventDefault();
     if (!validateForm()) return;
 
+    setShowValidationErrors(false);
     setLoading(true);
     setErrorMsg('');
 
@@ -524,10 +568,7 @@ export default function RegisterModal({
         payload.append('additionalPhones', JSON.stringify(validAdditionalPhones));
       }
 
-      // Optional email
-      if (formData.email && formData.email.trim()) {
-        payload.append('email', formData.email.trim().toLowerCase());
-      }
+      payload.append('email', formData.email.trim().toLowerCase());
 
       payload.append('password', formData.password);
       payload.append('age', formData.age);
@@ -571,13 +612,19 @@ export default function RegisterModal({
         (formData.workingYearsInTitleLocation || '').trim()
       );
 
+      // Residing address and years
+      payload.append('currentAddress', (formData.currentAddress || '').trim());
+      payload.append('livingYears', (formData.livingYears || '').trim());
+
       // Family details: Parents
       payload.append('fatherName', (formData.fatherName || '').trim());
       payload.append('fatherAge', formData.fatherAge || '');
       payload.append('fatherOccupation', (formData.fatherOccupation || '').trim());
+      payload.append('fatherMarhum', formData.fatherMarhum ? 'true' : 'false');
       payload.append('motherName', (formData.motherName || '').trim());
       payload.append('motherAge', formData.motherAge || '');
       payload.append('motherOccupation', (formData.motherOccupation || '').trim());
+      payload.append('motherMarhum', formData.motherMarhum ? 'true' : 'false');
 
       // Dynamic Siblings
       const cleanSiblings = siblings
@@ -630,21 +677,40 @@ export default function RegisterModal({
         onClose();
       } else {
         const msg = data.message || 'Registration failed. Please check your inputs.';
+        const lowerMsg = msg.toLowerCase();
+        const targetField =
+          data.field ||
+          (lowerMsg.includes('email')
+            ? 'email'
+            : lowerMsg.includes('mobile') || lowerMsg.includes('phone')
+            ? 'phone'
+            : '');
+
         const isDuplicate =
-          msg.toLowerCase().includes('already exists') ||
-          msg.toLowerCase().includes('mobile number');
+          lowerMsg.includes('already exists') ||
+          targetField === 'email' ||
+          targetField === 'phone';
+
+        let alertTitle = isTamil ? 'பதிவு பிழை' : 'Registration Alert';
+        let alertDetail = msg;
+
+        if (targetField === 'email' && isDuplicate) {
+          alertTitle = isTamil ? 'மின்னஞ்சல் முகவரி ஏற்கனவே உள்ளது!' : 'Email Address Already Exists!';
+          alertDetail = isTamil
+            ? 'இந்த மின்னஞ்சல் முகவரி ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. நீங்கள் ஏற்கனவே கணக்கு வைத்திருந்தால் தயவுசெய்து உள்நுழையவும் அல்லது வேறு மின்னஞ்சலைப் பயன்படுத்தவும்.'
+            : 'An account with this email address already exists. If you have an account, please log in or use a different email.';
+        } else if (targetField === 'phone' && isDuplicate) {
+          alertTitle = isTamil ? 'மொபைல் எண் ஏற்கனவே உள்ளது!' : 'Mobile Number Already Exists!';
+          alertDetail = isTamil
+            ? 'இந்த மொபைல் எண் ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. நீங்கள் ஏற்கனவே கணக்கு வைத்திருந்தால் தயவுசெய்து உள்நுழையவும்.'
+            : 'An account with this mobile number already exists. If you have an account, please log in.';
+        }
 
         showPopupAlert(
-          isDuplicate
-            ? (isTamil ? 'மொபைல் எண் ஏற்கனவே உள்ளது!' : 'Mobile Number Already Exists!')
-            : (isTamil ? 'பதிவு பிழை' : 'Registration Alert'),
-          isDuplicate
-            ? (isTamil
-              ? 'இந்த மொபைல் எண் ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. நீங்கள் ஏற்கனவே கணக்கு வைத்திருந்தால் தயவுசெய்து உள்நுழையவும்.'
-              : 'An account with this mobile number already exists. If you have an account, please log in.')
-            : msg,
+          alertTitle,
+          alertDetail,
           isDuplicate ? 'exists' : 'error',
-          'phone'
+          targetField || 'phone'
         );
       }
     } catch (err) {
@@ -668,7 +734,7 @@ export default function RegisterModal({
       onClick={handleBackdropClick}
     >
       <div
-        className="w-full max-w-3xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[94vh] flex flex-col"
+        className="w-full max-w-4xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-3 max-h-[95vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -870,8 +936,15 @@ export default function RegisterModal({
         <form
           ref={formRef}
           onSubmit={handleSubmit}
+          onChangeCapture={(event) => {
+            const field = event.target;
+            const isValid = field.type === 'checkbox' ? field.checked : field.checkValidity();
+            if (isValid) field.classList.remove('registration-field-invalid');
+          }}
           noValidate
-          className="overflow-y-auto p-4 sm:p-6 flex-grow space-y-6 text-xs sm:text-sm custom-scrollbar"
+          className={`registration-form overflow-y-auto p-4 sm:p-6 flex-grow space-y-6 text-xs sm:text-sm custom-scrollbar ${
+            showValidationErrors ? 'show-validation-errors' : ''
+          }`}
         >
           {errorMsg && (
             <div className="p-3 bg-red-100 border-l-4 border-red-600 text-red-800 rounded-md text-xs sm:text-sm font-semibold flex items-center gap-2">
@@ -899,7 +972,7 @@ export default function RegisterModal({
 
               <div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
+                  <div className="flex flex-col h-full space-y-1">
                     <TamilInput
                       label={
                         isTamil
@@ -920,11 +993,11 @@ export default function RegisterModal({
                       required
                     />
                   </div>
-                  <div>
+                  <div className="flex flex-col h-full space-y-1">
                     <TamilInput
                       label={
                         isTamil
-                          ? 'தற்போது வசிக்கும் நாடு (Current Country of Residence) *'
+                          ? 'தற்போது வசிக்கும் நாடு (Residence Country) *'
                           : 'Current Country of Residence *'
                       }
                       name="countryOfResidence"
@@ -1028,7 +1101,7 @@ export default function RegisterModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {/* 1. Tamil Name Field */}
-                <div>
+                <div className="flex flex-col h-full space-y-1">
                   <TamilInput
                     id="reg-name"
                     label={
@@ -1044,6 +1117,7 @@ export default function RegisterModal({
                     value={formData.name}
                     onChange={handleChange}
                     lockTamil={true}
+                    showInputTools={isTamil}
                     placeholder={
                       formData.gender === 'bride'
                         ? 'எ.கா: நஸ்ரின் பானு'
@@ -1059,8 +1133,8 @@ export default function RegisterModal({
                 </div>
 
                 {/* 2. English Name Field */}
-                <div className="space-y-1">
-                  <div className="flex items-end justify-between gap-1 min-h-[38px] sm:min-h-[42px] pb-1">
+                <div className="flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end justify-between gap-1 pb-1">
                     <label
                       htmlFor="reg-nameEn"
                       className="block text-xs font-bold text-[#44351b] leading-tight"
@@ -1072,14 +1146,13 @@ export default function RegisterModal({
                         : formData.gender === 'bride'
                           ? 'Bride Name (in English) *'
                           : 'Groom Name (in English) *'}
-                      <span className="text-red-500"> *</span>
                     </label>
-                    <span className="px-2 py-0.5 rounded font-bold text-[10px] sm:text-[11px] bg-white text-gray-700 border border-gray-300 flex-shrink-0 self-end">
+                    <span className="px-1.5 py-0.5 rounded font-bold text-[10px] sm:text-[11px] bg-white text-gray-700 border border-gray-300 flex-shrink-0 self-end">
                       English
                     </span>
                   </div>
 
-                  <div className="relative">
+                  <div className="relative mt-auto">
                     <input
                       id="reg-nameEn"
                       type="text"
@@ -1088,15 +1161,15 @@ export default function RegisterModal({
                       onChange={handleEnglishNameChange}
                       placeholder={
                         formData.gender === 'bride'
-                          ? 'e.g., Nasrin Banu'
-                          : 'e.g., Mohamed Arshath'
+                          ? 'e.g. Nasrin Banu'
+                          : 'e.g. Mohamed Arshath'
                       }
                       required
-                      className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[38px] sm:h-[40px]"
+                      className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
                     />
                   </div>
 
-                  <p className="text-[11px] text-gray-500 italic">
+                  <p className="text-[11px] text-gray-500 italic min-h-[16px]">
                     {isTamil
                       ? 'வரனின் பெயரை ஆங்கிலத்தில் உள்ளிடவும் (ஆங்கிலம் மட்டும்).'
                       : 'Enter candidate name in English (English only).'}
@@ -1115,10 +1188,10 @@ export default function RegisterModal({
                     : 'Publisher (Person Registering This Profile) *'}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="flex flex-col h-full space-y-1">
                   <TamilInput
-                    label={isTamil ? 'பதிவு செய்பவரின் பெயர் (Publisher Name)' : "Publisher's Name"}
+                    label={isTamil ? 'பதிவு செய்பவரின் பெயர் (Publisher Name) *' : "Publisher's Name *"}
                     name="publisherName"
                     value={formData.publisherName}
                     onChange={handleChange}
@@ -1127,28 +1200,30 @@ export default function RegisterModal({
                   />
                 </div>
 
-                <div>
-                  <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                    <label className="block text-xs font-bold text-gray-700 leading-tight">
+                <div className="flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end pb-1">
+                    <label className="block text-xs font-bold text-[#44351b] leading-tight">
                       {isTamil ? 'வரனுடன் உறவுமுறை (Relationship) *' : 'Relationship with Candidate *'}
                     </label>
                   </div>
-                  <select
-                    name="publisherRelationship"
-                    value={formData.publisherRelationship}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                  >
-                    <option value="Self">{isTamil ? 'சுய பதிவு (Self)' : 'Self'}</option>
-                    <option value="Father">{isTamil ? 'தந்தை (Father)' : 'Father'}</option>
-                    <option value="Mother">{isTamil ? 'தாய் (Mother)' : 'Mother'}</option>
-                    <option value="Brother">{isTamil ? 'சகோதரன் (Brother)' : 'Brother'}</option>
-                    <option value="Sister">{isTamil ? 'சகோதரி (Sister)' : 'Sister'}</option>
-                    <option value="Guardian">{isTamil ? 'பாதுகாவலர் (Guardian)' : 'Guardian'}</option>
-                    <option value="Relative">{isTamil ? 'உறவினர் (Relative)' : 'Relative'}</option>
-                    <option value="Other">{isTamil ? 'பிறர் (Other)' : 'Other'}</option>
-                  </select>
+                  <div className="relative mt-auto">
+                    <select
+                      name="publisherRelationship"
+                      value={formData.publisherRelationship}
+                      onChange={handleChange}
+                      required
+                      className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
+                    >
+                      <option value="Self">{isTamil ? 'சுய பதிவு (Self)' : 'Self'}</option>
+                      <option value="Father">{isTamil ? 'தந்தை (Father)' : 'Father'}</option>
+                      <option value="Mother">{isTamil ? 'தாய் (Mother)' : 'Mother'}</option>
+                      <option value="Brother">{isTamil ? 'சகோதரன் (Brother)' : 'Brother'}</option>
+                      <option value="Sister">{isTamil ? 'சகோதரி (Sister)' : 'Sister'}</option>
+                      <option value="Guardian">{isTamil ? 'பாதுகாவலர் (Guardian)' : 'Guardian'}</option>
+                      <option value="Relative">{isTamil ? 'உறவினர் (Relative)' : 'Relative'}</option>
+                      <option value="Other">{isTamil ? 'பிறர் (Other)' : 'Other'}</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1163,16 +1238,27 @@ export default function RegisterModal({
 
             <div className="space-y-3">
               {/* Primary Mobile Number */}
-              <div>
-                <label className="block text-xs font-bold text-gray-800 mb-1 flex items-center justify-between">
-                  <span>{isTamil ? 'முதன்மை மொபைல் எண் (Primary Mobile Number) *' : 'Primary Mobile Number *'}</span>
-                  <span className="text-[10px] text-gray-500">{isTamil ? 'உள்நுழைய பயன்படும்' : 'Used for login'}</span>
-                </label>
-                <div className="flex gap-2 items-start">
+              <div className="flex flex-col space-y-1">
+                <div className="min-h-[24px] flex items-center justify-between gap-2">
+                  <label htmlFor="reg-phone" className="block text-xs font-bold text-[#44351b] leading-tight">
+                    {isTamil ? 'முதன்மை மொபைல் எண் (Primary Mobile Number) *' : 'Primary Mobile Number *'}
+                  </label>
+                  <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
+                    {isTamil ? 'உள்நுழைய பயன்படும்' : 'Used for login'}
+                  </span>
+                </div>
+                <div className="flex gap-2 items-center">
                   <CountryCodeSelect
                     id="reg-primary-country-code"
                     value={countryCode}
-                    onChange={(newCode) => setCountryCode(newCode)}
+                    onChange={(newCode) => {
+                      setCountryCode(newCode);
+                      const maxLen = getMaxDigitsForDialCode(newCode);
+                      setFormData((prev) => ({
+                        ...prev,
+                        phone: prev.phone.slice(0, maxLen),
+                      }));
+                    }}
                     isTamil={isTamil}
                     preferredOverseas={isOverseas}
                   />
@@ -1181,7 +1267,13 @@ export default function RegisterModal({
                     id="reg-phone"
                     name="phone"
                     value={formData.phone}
-                    onChange={handleChange}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      const maxLen = getMaxDigitsForDialCode(countryCode);
+                      if (val.length <= maxLen) {
+                        setFormData((prev) => ({ ...prev, phone: val }));
+                      }
+                    }}
                     placeholder={
                       isOverseas
                         ? (countryCode === '+65'
@@ -1199,26 +1291,26 @@ export default function RegisterModal({
                             : '1234567890')
                         : '9876543210'
                     }
-                    maxLength={16}
+                    maxLength={getMaxDigitsForDialCode(countryCode)}
                     required
-                    className="flex-1 px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-xl focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono font-bold shadow-sm"
+                    className="flex-1 h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono font-bold shadow-inner"
                   />
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-gray-500 mt-1">
+                <div className="flex items-center justify-between text-[11px] text-gray-500 flex-wrap gap-1 pt-0.5">
                   <span>
                     {isTamil
                       ? `அழைப்புக் குறியீடு: ${countryCode} (நாட்டை மாற்ற கொடியை கிளிக் செய்க)`
                       : `Selected Calling Code: ${countryCode} (Click flag to change)`}
                   </span>
                   <span className="text-[10px] text-gray-400 font-medium">
-                    {isOverseas ? 'Min 7 digits' : '10 digits'}
+                    {isOverseas ? `Max ${getMaxDigitsForDialCode(countryCode)} digits` : '10 digits'}
                   </span>
                 </div>
               </div>
 
               {/* Additional Mobile Numbers (Multiple Option) */}
               <div className="space-y-2 pt-1">
-                <label className="block text-xs font-bold text-gray-700">
+                <label className="block text-xs font-bold text-[#44351b]">
                   {isTamil
                     ? 'கூடுதல் தொடர்பு எண்கள் (Additional Mobile Numbers - Optional)'
                     : 'Additional Mobile Numbers (Optional)'}
@@ -1235,19 +1327,25 @@ export default function RegisterModal({
                     <input
                       type="tel"
                       value={extraPhone}
-                      onChange={(e) => handleAdditionalPhoneChange(idx, e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        const maxLen = getMaxDigitsForDialCode(additionalCountryCodes[idx] || countryCode);
+                        if (val.length <= maxLen) {
+                          handleAdditionalPhoneChange(idx, val);
+                        }
+                      }}
                       placeholder={
                         isTamil
                           ? `கூடுதல் எண் ${idx + 1} (எ.கா: தந்தை / தாய் எண்)`
                           : `Additional Phone ${idx + 1} (e.g. Father/Mother)`
                       }
-                      maxLength={16}
-                      className="flex-1 px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-xl focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono shadow-sm"
+                      maxLength={getMaxDigitsForDialCode(additionalCountryCodes[idx] || countryCode)}
+                      className="flex-1 h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono shadow-inner"
                     />
                     <button
                       type="button"
                       onClick={() => handleRemovePhoneField(idx)}
-                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition"
+                      className="h-[42px] w-[42px] flex items-center justify-center text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-200 rounded-lg transition"
                       title={isTamil ? 'நீக்குக' : 'Remove number'}
                     >
                       <FaTrash className="text-xs" />
@@ -1259,7 +1357,7 @@ export default function RegisterModal({
                   <button
                     type="button"
                     onClick={handleAddPhoneField}
-                    className="mt-1 text-xs font-bold text-[#163828] hover:text-[#255e43] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#e8f1ec] border border-[#b2d5c3] shadow-sm transition"
+                    className="mt-1 text-xs font-bold text-[#163828] hover:text-[#255e43] inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#e8f1ec] border border-[#b2d5c3] shadow-sm transition"
                   >
                     <FaPlus className="text-[10px]" />
                     <span>{isTamil ? '+ மேலும் ஒரு மொபைல் எண் சேர்க்க' : '+ Add Another Mobile Number'}</span>
@@ -1267,45 +1365,55 @@ export default function RegisterModal({
                 )}
               </div>
 
-              {/* Optional Email Address Field */}
-              <div className="pt-2 border-t border-gray-100">
-                <label className="block text-xs font-bold text-gray-800 mb-1 flex items-center justify-between">
-                  <span>{isTamil ? 'மின்னஞ்சல் முகவரி (Email Address - விருப்பத்தேர்வு)' : 'Email Address (Optional)'}</span>
-                  <span className="text-[10px] text-gray-500 font-semibold">{isTamil ? 'விருப்பத்தேர்வு (Optional)' : 'Optional'}</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder={isTamil ? 'எ.கா: example@gmail.com' : 'e.g. example@gmail.com'}
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900"
-                />
-              </div>
-
-              {/* Password Field */}
-              <div className="pt-2 border-t border-gray-100">
-                <label className="block text-xs font-bold text-gray-800 mb-1">
-                  {isTamil ? 'கடவுச்சொல் (Password) *' : 'Password (min 6 characters) *'}
-                </label>
-                <div className="relative">
+              {/* Email & Password: 2-Column Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-gray-100">
+                {/* Required Email Address Field */}
+                <div className="flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end pb-1">
+                    <label htmlFor="reg-email" className="block text-xs font-bold text-[#44351b] leading-tight">
+                      {isTamil ? 'மின்னஞ்சல் முகவரி (Email Address) *' : 'Email Address *'}
+                    </label>
+                  </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    value={formData.password}
+                    id="reg-email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
                     onChange={handleChange}
-                    placeholder="••••••••"
+                    placeholder={isTamil ? 'எ.கா: example@gmail.com' : 'e.g. example@gmail.com'}
                     required
-                    minLength={6}
-                    className="w-full px-3 py-1.5 pr-10 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900"
+                    className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? <FaEyeSlash /> : <FaEye />}
-                  </button>
+                </div>
+
+                {/* Password Field */}
+                <div className="flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end pb-1">
+                    <label htmlFor="reg-password" className="block text-xs font-bold text-[#44351b] leading-tight">
+                      {isTamil ? 'கடவுச்சொல் (Password - min 6 chars) *' : 'Password (min 6 characters) *'}
+                    </label>
+                  </div>
+                  <div className="relative mt-auto">
+                    <input
+                      id="reg-password"
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                      className="w-full h-[42px] px-3 py-2 pr-10 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1318,97 +1426,103 @@ export default function RegisterModal({
               <span>{isTamil ? 'தனிநபர் & சமுதாய விவரங்கள்' : 'Personal & Demographic Details'}</span>
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               {/* Age */}
-              <div>
-                <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                  <label className="block text-xs font-bold text-gray-700 leading-tight">
+              <div className="flex flex-col h-full space-y-1">
+                <div className="min-h-[42px] flex items-end pb-1">
+                  <label className="block text-xs font-bold text-[#44351b] leading-tight">
                     {isTamil ? 'வயது (Age) *' : 'Age *'}
                   </label>
                 </div>
-                <select
-                  name="age"
-                  value={formData.age}
-                  onChange={handleChange}
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                >
-                  {Array.from({ length: 55 }, (_, i) => i + 18).map((num) => (
-                    <option key={num} value={num}>
-                      {num} {isTamil ? 'வயது' : 'Years'}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative mt-auto">
+                  <select
+                    name="age"
+                    value={formData.age}
+                    onChange={handleChange}
+                    className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
+                  >
+                    {Array.from({ length: 55 }, (_, i) => i + 18).map((num) => (
+                      <option key={num} value={num}>
+                        {num} {isTamil ? 'வயது' : 'Years'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Marital Status */}
-              <div>
-                <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                  <label className="block text-xs font-bold text-gray-700 leading-tight">
+              <div className="flex flex-col h-full space-y-1">
+                <div className="min-h-[42px] flex items-end pb-1">
+                  <label className="block text-xs font-bold text-[#44351b] leading-tight">
                     {isTamil ? 'திருமண நிலை (Marital Status) *' : 'Marital Status *'}
                   </label>
                 </div>
-                <select
-                  name="maritalStatus"
-                  value={formData.maritalStatus}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                >
-                  <option value="Un married">
-                    {isTamil ? 'திருமணம் ஆகாதவர் (Un married)' : 'Un married'}
-                  </option>
-                  <option value="Divorced">
-                    {isTamil ? 'விவாகரத்து ஆனவர் (Divorced)' : 'Divorced'}
-                  </option>
-                  <option value="Applied for divorce">
-                    {isTamil ? 'விவாகரத்து கோரியவர் (Applied for divorce)' : 'Applied for divorce'}
-                  </option>
-                  <option value="Bereaved of a partner">
-                    {isTamil ? 'துணையை இழந்தவர் (Bereaved of a partner)' : 'Bereaved of a partner'}
-                  </option>
-                  <option value="Additional Marriage">
-                    {isTamil ? 'கூடுதல் திருமணம் / மறுமணம் (Additional Marriage)' : 'Additional Marriage'}
-                  </option>
-                </select>
+                <div className="relative mt-auto">
+                  <select
+                    name="maritalStatus"
+                    value={formData.maritalStatus}
+                    onChange={handleChange}
+                    required
+                    className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
+                  >
+                    <option value="Un married">
+                      {isTamil ? 'திருமணம் ஆகாதவர் (Un married)' : 'Un married'}
+                    </option>
+                    <option value="Divorced">
+                      {isTamil ? 'விவாகரத்து ஆனவர் (Divorced)' : 'Divorced'}
+                    </option>
+                    <option value="Applied for divorce">
+                      {isTamil ? 'விவாகரத்து கோரியவர் (Applied for divorce)' : 'Applied for divorce'}
+                    </option>
+                    <option value="Bereaved of a partner">
+                      {isTamil ? 'துணையை இழந்தவர் (Bereaved of a partner)' : 'Bereaved of a partner'}
+                    </option>
+                    <option value="Additional Marriage">
+                      {isTamil ? 'கூடுதல் திருமணம் / மறுமணம் (Additional Marriage)' : 'Additional Marriage'}
+                    </option>
+                  </select>
+                </div>
               </div>
 
               {/* Language */}
-              <div>
-                <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                  <label className="block text-xs font-bold text-gray-700 leading-tight">
+              <div className="flex flex-col h-full space-y-1">
+                <div className="min-h-[42px] flex items-end pb-1">
+                  <label className="block text-xs font-bold text-[#44351b] leading-tight">
                     {isTamil ? 'மொழி & இனம் (Language) *' : 'Language *'}
                   </label>
                 </div>
-                <select
-                  name="language"
-                  value={formData.language}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                >
-                  <option value="Tamil-Muslim">
-                    {isTamil ? 'தமிழ்-முஸ்லிம் (Tamil-Muslim)' : 'Tamil-Muslim'}
-                  </option>
-                  <option value="Urdu-Muslim">
-                    {isTamil ? 'உருது-முஸ்லிம் (Urdu-Muslim)' : 'Urdu-Muslim'}
-                  </option>
-                  <option value="Tamil-Urdu Muslim">
-                    {isTamil ? 'தமிழ்-உருது முஸ்லிம் (Tamil-Urdu Muslim)' : 'Tamil-Urdu Muslim'}
-                  </option>
-                  <option value="Kerala-Muslim">
-                    {isTamil ? 'கேரளா-முஸ்லிம் (Kerala-Muslim)' : 'Kerala-Muslim'}
-                  </option>
-                </select>
+                <div className="relative mt-auto">
+                  <select
+                    name="language"
+                    value={formData.language}
+                    onChange={handleChange}
+                    required
+                    className="w-full h-[42px] px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
+                  >
+                    <option value="Tamil-Muslim">
+                      {isTamil ? 'தமிழ்-முஸ்லிம் (Tamil-Muslim)' : 'Tamil-Muslim'}
+                    </option>
+                    <option value="Urdu-Muslim">
+                      {isTamil ? 'உருது-முஸ்லிம் (Urdu-Muslim)' : 'Urdu-Muslim'}
+                    </option>
+                    <option value="Tamil-Urdu Muslim">
+                      {isTamil ? 'தமிழ்-உருது முஸ்லிம் (Tamil-Urdu Muslim)' : 'Tamil-Urdu Muslim'}
+                    </option>
+                    <option value="Kerala-Muslim">
+                      {isTamil ? 'கேரளா-முஸ்லிம் (Kerala-Muslim)' : 'Kerala-Muslim'}
+                    </option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Location */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
                   label={
                     isOverseas
-                      ? (isTamil ? 'வெளிநாட்டு வசிப்பிட நகரம் & நாடு (Overseas City & Country) *' : 'Overseas City & Country of Residence *')
+                      ? (isTamil ? 'வெளிநாட்டு வசிப்பிடம் (City & Country) *' : 'Overseas City & Country of Residence *')
                       : (isTamil ? 'இருப்பிடம் (மாவட்டம் / ஊர்) *' : 'Location (District / City) *')
                   }
                   name="location"
@@ -1441,13 +1555,35 @@ export default function RegisterModal({
               </div>
 
               {/* Height (Enterable as text with Tamil support) */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
-                  label={isTamil ? 'உயரம் (Height)' : 'Height'}
+                  label={isTamil ? 'உயரம் (Height - அடி / cm)' : 'Height (ft / cm)'}
                   name="height"
                   value={formData.height}
                   onChange={handleChange}
                   placeholder={isTamil ? 'எ.கா: 5.6 அடி / 5 ft 6 in' : 'e.g. 5.6 அடி / 5\'6" / 168 cm'}
+                />
+              </div>
+            </div>
+
+            {/* Current Residing Address & Duration */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 pt-2 border-t border-gray-100">
+              <div className="sm:col-span-8 flex flex-col h-full space-y-1">
+                <TamilInput
+                  label={isTamil ? 'தற்போது வசிக்கும் முகவரி (Current Address)' : 'Current Residing Address'}
+                  name="currentAddress"
+                  value={formData.currentAddress}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: எண் 12, அண்ணா நகர், சென்னை' : 'e.g. No. 12, Anna Nagar, Chennai'}
+                />
+              </div>
+              <div className="sm:col-span-4 flex flex-col h-full space-y-1">
+                <TamilInput
+                  label={isTamil ? 'வசிக்கும் காலம் (Years Living There)' : 'Years Living There'}
+                  name="livingYears"
+                  value={formData.livingYears}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: 5 ஆண்டுகள் / 10 வருடங்கள்' : 'e.g. 5 Years / 10 Years'}
                 />
               </div>
             </div>
@@ -1460,21 +1596,21 @@ export default function RegisterModal({
               <span>{isTamil ? 'கல்வி, தொழில் & பொருளாதார விவரங்கள்' : 'Education, Career & Assets'}</span>
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Education */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
                   label={isTamil ? 'கல்வித் தகுதி (Education)' : 'Education Qualification'}
                   name="education"
                   value={formData.education}
                   onChange={handleChange}
-                  placeholder="B.E / B.Tech / MBA / MBBS / Arts"
+                  placeholder=""
                   required
                 />
               </div>
 
               {/* Occupation */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
                   label={isTamil ? 'தொழில் / பணி (Occupation)' : 'Occupation / Job'}
                   name="occupation"
@@ -1486,9 +1622,9 @@ export default function RegisterModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Workplace */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
                   label={
                     isOverseas
@@ -1507,7 +1643,7 @@ export default function RegisterModal({
               </div>
 
               {/* Monthly Income (With Placeholder as requested) */}
-              <div>
+              <div className="flex flex-col h-full space-y-1">
                 <TamilInput
                   label={
                     isOverseas
@@ -1530,17 +1666,19 @@ export default function RegisterModal({
               </div>
             </div>
 
-            {/* Field: How many years working in that title in that particular work location */}
-            <div className="pt-2 border-t border-gray-100">
-              <label className="block text-xs font-bold text-gray-800 mb-1 flex items-center gap-1.5">
-                <FaClock className="text-amber-700 text-xs" />
-                <span>
-                  {isTamil
-                    ? 'இப்பதவியில் இந்த பணியிடத்தில் எத்தனை ஆண்டுகள் பணிபுரிகிறார்? *'
-                    : 'Years working in this title at this location *'}
-                </span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Field: How many years working in that title in that particular work location & Properties */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-gray-100">
+              <div className="flex flex-col h-full space-y-1">
+                <div className="min-h-[42px] flex items-end pb-1">
+                  <label className="block text-xs font-bold text-[#44351b] leading-tight flex items-center gap-1.5">
+                    <FaClock className="text-amber-700 text-xs flex-shrink-0" />
+                    <span>
+                      {isTamil
+                        ? 'பதவியில் / பணியிடத்தில் கால அளவு (Years in Role)'
+                        : 'Years in this role at this location'}
+                    </span>
+                  </label>
+                </div>
                 <input
                   type="text"
                   name="workingYearsInTitleLocation"
@@ -1548,62 +1686,28 @@ export default function RegisterModal({
                   onChange={handleChange}
                   placeholder={
                     isTamil
-                      ? 'எ.கா: 3 ஆண்டுகள் (3 Years in this role at this place)'
-                      : 'e.g. 3 Years in this role at this place'
+                      ? 'எ.கா: 3 ஆண்டுகள் (3 Years)'
+                      : 'e.g. 3 Years in role'
                   }
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-medium h-[38px] sm:h-[40px]"
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-medium h-[42px] shadow-inner mt-auto"
                 />
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setFormData((prev) => ({
-                        ...prev,
-                        workingYearsInTitleLocation: e.target.value,
-                      }));
-                    }
-                  }}
-                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-[#faf8f4] border border-[#c5b597] rounded-md text-gray-700 font-semibold cursor-pointer h-[38px] sm:h-[40px]"
-                  defaultValue=""
-                >
-                  <option value="" disabled>
-                    {isTamil ? '-- விரைவு தேர்வு (Quick Select) --' : '-- Quick Select Years --'}
-                  </option>
-                  <option value="1 வருடத்திற்கும் குறைவாக (Less than 1 yr)">
-                    {isTamil ? '1 வருடத்திற்கும் குறைவாக (Less than 1 yr)' : 'Less than 1 yr'}
-                  </option>
-                  <option value="1 - 2 ஆண்டுகள் (1 - 2 Years)">
-                    {isTamil ? '1 - 2 ஆண்டுகள் (1 - 2 Years)' : '1 - 2 Years'}
-                  </option>
-                  <option value="2 - 4 ஆண்டுகள் (2 - 4 Years)">
-                    {isTamil ? '2 - 4 ஆண்டுகள் (2 - 4 Years)' : '2 - 4 Years'}
-                  </option>
-                  <option value="5 - 7 ஆண்டுகள் (5 - 7 Years)">
-                    {isTamil ? '5 - 7 ஆண்டுகள் (5 - 7 Years)' : '5 - 7 Years'}
-                  </option>
-                  <option value="8 - 10 ஆண்டுகள் (8 - 10 Years)">
-                    {isTamil ? '8 - 10 ஆண்டுகள் (8 - 10 Years)' : '8 - 10 Years'}
-                  </option>
-                  <option value="10+ ஆண்டுகள் (10+ Years)">
-                    {isTamil ? '10+ ஆண்டுகள் (10+ Years)' : '10+ Years'}
-                  </option>
-                </select>
+                <p className="text-[10px] text-gray-500 italic">
+                  {isTamil
+                    ? 'தற்போதைய பணியிடத்தில் பணிபுரியும் கால அளவு.'
+                    : 'Years in this specific job role.'}
+                </p>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 italic">
-                {isTamil
-                  ? 'குறிப்பிட்ட பணியிடத்தில் தற்போதைய பதவியில் பணிபுரியும் கால அளவு.'
-                  : 'Number of years working in this specific job role at this location.'}
-              </p>
-            </div>
 
-            {/* Properties */}
-            <div>
-              <TamilInput
-                label={isTamil ? 'சொத்துக்கள் (Properties)' : 'Properties'}
-                name="properties"
-                value={formData.properties}
-                onChange={handleChange}
-                placeholder={isTamil ? 'எ.கா: சொந்த வீடு, மனை / நன்செய் நிலம்' : 'e.g. Own House, Land, Commercial plot'}
-              />
+              {/* Properties */}
+              <div className="flex flex-col h-full space-y-1">
+                <TamilInput
+                  label={isTamil ? 'சொத்துக்கள் (Properties)' : 'Properties'}
+                  name="properties"
+                  value={formData.properties}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: சொந்த வீடு, மனை / நன்செய் நிலம்' : 'e.g. Own House, Land, Commercial plot'}
+                />
+              </div>
             </div>
           </div>
 
@@ -1625,11 +1729,25 @@ export default function RegisterModal({
 
             {/* Father Details */}
             <div className="bg-[#faf8f4] p-4 rounded-xl border border-[#e5dcce] space-y-3">
-              <h5 className="font-extrabold text-xs sm:text-sm text-[#745821] border-b border-[#e5dcce]/80 pb-1.5">
-                {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
-              </h5>
+              <div className="flex flex-wrap items-center justify-between border-b border-[#e5dcce]/80 pb-1.5 gap-2">
+                <h5 className="font-extrabold text-xs sm:text-sm text-[#745821]">
+                  {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
+                </h5>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200 hover:bg-amber-100/60 transition">
+                  <input
+                    type="checkbox"
+                    name="fatherMarhum"
+                    checked={Boolean(formData.fatherMarhum)}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-[#163828] rounded border-gray-300 focus:ring-[#163828]"
+                  />
+                  <span className={formData.fatherMarhum ? 'text-red-700 font-extrabold' : 'text-gray-700 font-bold'}>
+                    {isTamil ? 'மர்ஹும் / Marhum' : 'Marhum / Late'}
+                  </span>
+                </label>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
-                <div className="sm:col-span-5">
+                <div className="sm:col-span-5 flex flex-col h-full space-y-1">
                   <TamilInput
                     label={isTamil ? 'தந்தை பெயர் (Father Name)' : 'Father Name'}
                     name="fatherName"
@@ -1638,26 +1756,24 @@ export default function RegisterModal({
                     placeholder={isTamil ? 'எ.கா: அப்துல் ரஹ்மான்' : 'e.g. Abdul Rahman'}
                   />
                 </div>
-                <div className="sm:col-span-2">
-                  <div className="space-y-1">
-                    <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                      <label className="block text-xs font-bold text-[#44351b] leading-tight">
-                        {isTamil ? 'வயது (Age)' : 'Age'}
-                      </label>
-                    </div>
-                    <input
-                      type="number"
-                      name="fatherAge"
-                      value={formData.fatherAge}
-                      onChange={handleChange}
-                      placeholder="55"
-                      min={30}
-                      max={120}
-                      className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[38px] sm:h-[40px]"
-                    />
+                <div className="sm:col-span-3 flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end pb-1">
+                    <label className="block text-xs font-bold text-[#44351b] leading-tight">
+                      {isTamil ? 'வயது (Age)' : 'Age'}
+                    </label>
                   </div>
+                  <input
+                    type="number"
+                    name="fatherAge"
+                    value={formData.fatherAge}
+                    onChange={handleChange}
+                    placeholder="55"
+                    min={30}
+                    max={120}
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[42px] mt-auto"
+                  />
                 </div>
-                <div className="sm:col-span-5">
+                <div className="sm:col-span-4 flex flex-col h-full space-y-1">
                   <TamilInput
                     label={isTamil ? 'தந்தை தொழில் (Occupation)' : 'Father Occupation'}
                     name="fatherOccupation"
@@ -1671,11 +1787,25 @@ export default function RegisterModal({
 
             {/* Mother Details */}
             <div className="bg-[#faf8f4] p-4 rounded-xl border border-[#e5dcce] space-y-3">
-              <h5 className="font-extrabold text-xs sm:text-sm text-[#745821] border-b border-[#e5dcce]/80 pb-1.5">
-                {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
-              </h5>
+              <div className="flex flex-wrap items-center justify-between border-b border-[#e5dcce]/80 pb-1.5 gap-2">
+                <h5 className="font-extrabold text-xs sm:text-sm text-[#745821]">
+                  {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
+                </h5>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200 hover:bg-amber-100/60 transition">
+                  <input
+                    type="checkbox"
+                    name="motherMarhum"
+                    checked={Boolean(formData.motherMarhum)}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-[#163828] rounded border-gray-300 focus:ring-[#163828]"
+                  />
+                  <span className={formData.motherMarhum ? 'text-red-700 font-extrabold' : 'text-gray-700 font-bold'}>
+                    {isTamil ? 'மர்ஹும் / Marhum' : 'Marhum / Late'}
+                  </span>
+                </label>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
-                <div className="sm:col-span-5">
+                <div className="sm:col-span-5 flex flex-col h-full space-y-1">
                   <TamilInput
                     label={isTamil ? 'தாய் பெயர் (Mother Name)' : 'Mother Name'}
                     name="motherName"
@@ -1684,26 +1814,24 @@ export default function RegisterModal({
                     placeholder={isTamil ? 'எ.கா: பாத்திமா பேகம்' : 'e.g. Fathima Begum'}
                   />
                 </div>
-                <div className="sm:col-span-2">
-                  <div className="space-y-1">
-                    <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                      <label className="block text-xs font-bold text-[#44351b] leading-tight">
-                        {isTamil ? 'வயது (Age)' : 'Age'}
-                      </label>
-                    </div>
-                    <input
-                      type="number"
-                      name="motherAge"
-                      value={formData.motherAge}
-                      onChange={handleChange}
-                      placeholder="50"
-                      min={30}
-                      max={120}
-                      className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[38px] sm:h-[40px]"
-                    />
+                <div className="sm:col-span-3 flex flex-col h-full space-y-1">
+                  <div className="min-h-[42px] flex items-end pb-1">
+                    <label className="block text-xs font-bold text-[#44351b] leading-tight">
+                      {isTamil ? 'வயது (Age)' : 'Age'}
+                    </label>
                   </div>
+                  <input
+                    type="number"
+                    name="motherAge"
+                    value={formData.motherAge}
+                    onChange={handleChange}
+                    placeholder="50"
+                    min={30}
+                    max={120}
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner h-[42px] mt-auto"
+                  />
                 </div>
-                <div className="sm:col-span-5">
+                <div className="sm:col-span-4 flex flex-col h-full space-y-1">
                   <TamilInput
                     label={isTamil ? 'தாய் தொழில் (Occupation)' : 'Mother Occupation'}
                     name="motherOccupation"
@@ -1742,9 +1870,9 @@ export default function RegisterModal({
                   {siblings.map((sibling, idx) => (
                     <div
                       key={idx}
-                      className="p-3.5 bg-white rounded-xl border border-[#caa85d]/60 shadow-sm grid grid-cols-1 sm:grid-cols-12 gap-3"
+                      className="p-3.5 bg-white rounded-xl border border-[#caa85d]/60 shadow-sm grid grid-cols-1 sm:grid-cols-12 gap-3.5"
                     >
-                      <div className="sm:col-span-5">
+                      <div className="sm:col-span-5 flex flex-col h-full space-y-1">
                         <TamilInput
                           label={isTamil ? `உடன்பிறந்தவர் #${idx + 1} பெயர் *` : `Sibling #${idx + 1} Name *`}
                           name={`sibling-${idx}-name`}
@@ -1753,56 +1881,50 @@ export default function RegisterModal({
                           placeholder={isTamil ? 'எ.கா: முஹம்மது யாசின்' : 'e.g. Mohamed Yasin'}
                         />
                       </div>
-                      <div className="sm:col-span-3">
-                        <div className="space-y-1">
-                          <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                            <label className="block text-xs font-bold text-[#44351b] leading-tight">
-                              {isTamil ? 'உறவு (Relation)' : 'Relation'}
-                            </label>
-                          </div>
-                          <select
-                            value={sibling.relation}
-                            onChange={(e) => handleSiblingChange(idx, 'relation', e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                          >
-                            <option value="brother">{isTamil ? 'சகோதரன் (Brother)' : 'Brother'}</option>
-                            <option value="sister">{isTamil ? 'சகோதரி (Sister)' : 'Sister'}</option>
-                          </select>
+                      <div className="sm:col-span-3 flex flex-col h-full space-y-1">
+                        <div className="min-h-[42px] flex items-end pb-1">
+                          <label className="block text-xs font-bold text-[#44351b] leading-tight">
+                            {isTamil ? 'உறவு (Relation)' : 'Relation'}
+                          </label>
                         </div>
+                        <select
+                          value={sibling.relation}
+                          onChange={(e) => handleSiblingChange(idx, 'relation', e.target.value)}
+                          className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[42px] shadow-inner mt-auto"
+                        >
+                          <option value="brother">{isTamil ? 'சகோதரன் (Brother)' : 'Brother'}</option>
+                          <option value="sister">{isTamil ? 'சகோதரி (Sister)' : 'Sister'}</option>
+                        </select>
                       </div>
-                      <div className="sm:col-span-3">
-                        <div className="space-y-1">
-                          <div className="min-h-[38px] sm:min-h-[42px] flex items-end pb-1">
-                            <label className="block text-xs font-bold text-[#44351b] leading-tight">
-                              {isTamil ? 'திருமண நிலை' : 'Marital Status'}
-                            </label>
-                          </div>
-                          <select
-                            value={sibling.maritalStatus}
-                            onChange={(e) => handleSiblingChange(idx, 'maritalStatus', e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[38px] sm:h-[40px]"
-                          >
-                            <option value="Unmarried">
-                              {isTamil ? 'திருமணமாகாதவர் (Unmarried)' : 'Unmarried'}
-                            </option>
-                            <option value="Married">
-                              {isTamil ? 'திருமணமானவர் (Married)' : 'Married'}
-                            </option>
-                          </select>
+                      <div className="sm:col-span-3 flex flex-col h-full space-y-1">
+                        <div className="min-h-[42px] flex items-end pb-1">
+                          <label className="block text-xs font-bold text-[#44351b] leading-tight">
+                            {isTamil ? 'திருமண நிலை' : 'Marital Status'}
+                          </label>
                         </div>
+                        <select
+                          value={sibling.maritalStatus}
+                          onChange={(e) => handleSiblingChange(idx, 'maritalStatus', e.target.value)}
+                          className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold h-[42px] shadow-inner mt-auto"
+                        >
+                          <option value="Unmarried">
+                            {isTamil ? 'திருமணமாகாதவர் (Unmarried)' : 'Unmarried'}
+                          </option>
+                          <option value="Married">
+                            {isTamil ? 'திருமணமானவர் (Married)' : 'Married'}
+                          </option>
+                        </select>
                       </div>
-                      <div className="sm:col-span-1 flex flex-col justify-end">
-                        <div className="min-h-[38px] sm:min-h-[42px]" />
-                        <div className="h-[38px] sm:h-[40px] flex items-center justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSibling(idx)}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition"
-                            title={isTamil ? 'நீக்கு' : 'Remove'}
-                          >
-                            <FaTrash className="text-xs" />
-                          </button>
-                        </div>
+                      <div className="sm:col-span-1 flex flex-col justify-end h-full">
+                        <div className="min-h-[42px] hidden sm:flex items-end pb-1" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSibling(idx)}
+                          className="h-[42px] w-full flex items-center justify-center text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-200 rounded-lg transition"
+                          title={isTamil ? 'நீக்கு' : 'Remove'}
+                        >
+                          <FaTrash className="text-xs" />
+                        </button>
                       </div>
                     </div>
                   ))}

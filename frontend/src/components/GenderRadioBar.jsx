@@ -10,13 +10,14 @@ export default function GenderRadioBar({
   isForeignView,
   onToggleForeignView,
 }) {
+  const { t, language } = useLanguage();
+  const isTamil = language === 'ta';
+
   // If user is logged in, completely remove the selection navbar as required
   if (currentUser) {
     return null;
   }
 
-  const { t, language } = useLanguage();
-  const isTamil = language === 'ta';
   const handleChange = onChangeGender || onGenderChange || (() => {});
 
   const options = [
@@ -71,7 +72,7 @@ export default function GenderRadioBar({
               }`}
             >
               <FaGlobe className={`text-xs ${isForeignView ? 'text-gray-950 animate-spin' : 'text-amber-300'}`} />
-              <span>{isTamil ? '🌍 வெளிநாட்டு வரன்கள் மட்டும்' : '🌍 Foreign Profiles Only'}</span>
+              <span>{isTamil ? 'வெளிநாட்டு வரன்கள் மட்டும்' : 'Overseas Profiles Only'}</span>
             </button>
           )}
         </div>

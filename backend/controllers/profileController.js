@@ -56,6 +56,25 @@ export const TAMIL_NADU_DISTRICTS = [
 const contains = (value, term) => String(value ?? '').toLowerCase().includes(term.toLowerCase());
 const equalsCI = (value, term) => String(value ?? '').toLowerCase() === term.toLowerCase();
 
+const isAdministrativeProfile = (user) => {
+  const roles = [user.role, user.accountType, user.userType, user.profileType]
+    .filter(Boolean)
+    .map((role) => String(role).toLowerCase().replace(/[\s_-]/g, ''));
+  const name = `${user.fullName || ''} ${user.fullNameEn || ''}`.toLowerCase();
+
+  return (
+    user.isSystemAdmin === true ||
+    user.isSuperAdmin === true ||
+    roles.some((role) => ['admin', 'superadmin', 'systemadmin'].includes(role)) ||
+    /\b(super\s*admin|system\s*admin)\b/.test(name)
+  );
+};
+
+const isAdministrativeViewer = (user) =>
+  ['admin', 'superadmin', 'systemadmin'].includes(
+    String(user?.role || '').toLowerCase().replace(/[\s_-]/g, '')
+  );
+
 const lockContacts = (profile, isPremium) => {
   if (!isPremium) {
     profile.phone = null;
@@ -98,7 +117,11 @@ export const getProfiles = async (req, res) => {
     // Strict Gatekeeping: ONLY verified, unsuspended profiles are publicly accessible
     const equals = { isVerified: true };
     const filters = [];
-    if (gender && gender !== 'all') {
+    if (req.user?.gender === 'groom') {
+      equals.gender = 'bride';
+    } else if (req.user?.gender === 'bride') {
+      equals.gender = 'groom';
+    } else if (gender && gender !== 'all') {
       if (gender === 'overseas') equals.isOverseas = true;
       else equals.gender = gender;
     }
@@ -159,7 +182,7 @@ export const getProfiles = async (req, res) => {
     }
 
     const matched = (await findUsers(equals))
-      .filter((u) => filters.every((f) => f(u)))
+      .filter((u) => !isAdministrativeProfile(u) && filters.every((f) => f(u)))
       .sort(byCreatedDesc);
 
     const pageNum = Math.max(1, Number(page) || 1);
@@ -197,7 +220,7 @@ export const getProfileById = async (req, res) => {
     const profile = req.targetProfile || (await findUserByIdOrNikahId(req.params.id));
     const viewStats = req.viewStats;
 
-    if (!profile) {
+    if (!profile || (isAdministrativeProfile(profile) && !isAdministrativeViewer(viewer))) {
       return res.status(404).json({ success: false, message: 'Profile not found.' });
     }
 
@@ -238,7 +261,8 @@ export const getMyShortlist = async (req, res) => {
     }
 
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
-    const chosenList = await getUsersByIds(user.shortlistedProfiles || []);
+    const chosenList = (await getUsersByIds(user.shortlistedProfiles || []))
+      .filter((profile) => !isAdministrativeProfile(profile));
     const settings = await getSettings();
     const FREE_CHOSEN_LIMIT = Number(settings?.freeTierLimits?.maxShortlistProfiles ?? 3);
 
@@ -283,6 +307,9 @@ export const toggleShortlist = async (req, res) => {
     }
 
     const shortlist = user.shortlistedProfiles || [];
+    if (isAdministrativeProfile(target)) {
+      return res.status(404).json({ success: false, message: 'Profile not found.' });
+    }
     const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
     const settings = await getSettings();
 
@@ -347,7 +374,7 @@ export const getDistrictsSummary = async (req, res) => {
   try {
     const tally = {};
     (await findUsers({ isVerified: true }))
-      .filter((u) => u.isSuspended !== true)
+      .filter((u) => u.isSuspended !== true && !isAdministrativeProfile(u))
       .forEach((u) => {
         tally[u.district] = (tally[u.district] || 0) + 1;
       });
@@ -409,7 +436,7 @@ export const getFeaturedMarqueeProfiles = async (req, res) => {
     const activeFeatured = [];
 
     for (const u of featuredUsers) {
-      if (u.isSuspended) continue;
+      if (u.isSuspended || isAdministrativeProfile(u)) continue;
       const isFeatureActive =
         u.isFeatured === true &&
         (!u.featuredUntil || new Date(u.featuredUntil) > now);
@@ -481,4 +508,3 @@ export const featureMyProfile = async (req, res) => {
     });
   }
 };
-

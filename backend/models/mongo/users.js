@@ -86,7 +86,7 @@ export const findUserByIdentifiers = async (
       const d = String(p).replace(/\D/g, '');
       if (d.length >= 7) {
         const core = d.length > 10 ? d.slice(-10) : d;
-        const pattern = new RegExp(core.split('').join('\\D*'), 'i');
+        const pattern = new RegExp('(^|\\D)' + core.split('').join('\\D*') + '(\\D|$)', 'i');
         or.push({ phone: pattern });
         or.push({ additionalPhones: pattern });
       }
@@ -142,7 +142,14 @@ export const updateUser = async (user, patch) => {
   return user;
 };
 
-export const deleteUserById = (id) => User.deleteOne({ _id: id });
+export const deleteUserById = async (id) => {
+  if (!id) return { deletedCount: 0 };
+  if (isValidId(String(id))) {
+    const res = await User.deleteOne({ _id: id });
+    if (res.deletedCount > 0) return res;
+  }
+  return User.deleteOne({ nikahId: String(id) });
+};
 
 export const addToShortlist = (userId, targetId) =>
   User.updateOne({ _id: userId }, { $addToSet: { shortlistedProfiles: targetId }, $set: { updatedAt: new Date() } });

@@ -51,7 +51,7 @@ export const translations = {
     contact: 'தொடர்புக்கு',
 
     // Filter Box
-    filterBoxTitle: 'வரன் தேடல் & வடிகட்டி (MATRIMONIAL SEARCH)',
+    filterBoxTitle: 'வரன் தேடல் (MATRIMONIAL SEARCH)',
     collapse: 'சுருக்குக',
     expand: 'விரிவாக்குக',
     searchIdLabel: 'Search ID (வரன் எண்):',

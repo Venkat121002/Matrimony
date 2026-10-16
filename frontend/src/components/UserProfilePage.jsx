@@ -24,6 +24,8 @@ import {
   FaEnvelopeOpenText,
   FaInfinity,
   FaShieldAlt,
+  FaTrash,
+  FaExclamationTriangle,
 } from 'react-icons/fa';
 
 export default function UserProfilePage() {
@@ -74,6 +76,8 @@ export default function UserProfilePage() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isFeatureMarqueeOpen, setIsFeatureMarqueeOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
@@ -344,6 +348,39 @@ export default function UserProfilePage() {
     safeShortlistPage * SHORTLIST_PER_PAGE
   );
 
+  // Policy: Account deletion is strictly available after 1 month (30 days) from registration
+  const isOneMonthOld = Boolean(
+    (currentUser?.createdAt && Date.now() - new Date(currentUser.createdAt).getTime() >= 30 * 24 * 60 * 60 * 1000) ||
+    (currentUser?.minimumActiveUntil && new Date() >= new Date(currentUser.minimumActiveUntil))
+  );
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      const token = localStorage.getItem('nikah_token');
+      const res = await fetch('/api/auth/me', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.removeItem('nikah_token');
+        localStorage.removeItem('nikah_user');
+        alert(isTamil ? 'உங்கள் கணக்கு வெற்றிகரமாக நீக்கப்பட்டது.' : 'Your account has been deleted successfully.');
+        window.location.href = '/';
+      } else {
+        alert(data.message || (isTamil ? 'கணக்கை நீக்குவதில் பிழை ஏற்பட்டது' : 'Error deleting account'));
+      }
+    } catch (err) {
+      alert(isTamil ? 'கணக்கை நீக்குவதில் பிழை ஏற்பட்டது' : 'Error deleting account');
+    } finally {
+      setDeletingAccount(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f5efe1] text-gray-800 font-sans">
       <Header
@@ -412,6 +449,16 @@ export default function UserProfilePage() {
                 >
                   <FaEdit />
                   <span>{isTamil ? 'சுயவிவரத்தை திருத்த' : 'Edit Profile'}</span>
+                </button>
+              )}
+              {isOneMonthOld && (
+                <button
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="flex-1 md:flex-none px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition shadow text-xs sm:text-sm cursor-pointer"
+                  title={isTamil ? 'கணக்கை நீக்கு' : 'Delete Account'}
+                >
+                  <FaTrash className="text-xs" />
+                  <span>{isTamil ? 'கணக்கை நீக்கு' : 'Delete Account'}</span>
                 </button>
               )}
             </div>
@@ -903,6 +950,57 @@ export default function UserProfilePage() {
           );
         }}
       />
+
+      {/* Account Deletion Confirmation Modal (Policy: >= 1 Month) */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-500 max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl flex-shrink-0">
+                <FaExclamationTriangle />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-lg text-gray-900">
+                  {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கவா?' : 'Delete Account Permanently?'}
+                </h3>
+                <p className="text-xs text-red-600 font-semibold">
+                  {isTamil ? 'இந்த செயலை மாற்ற முடியாது' : 'This action cannot be undone'}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+              {isTamil
+                ? 'உங்கள் கணக்கு, புகைப்படங்கள், வரன் விவரங்கள் மற்றும் அனைத்து பதிவுகளும் தளத்திலிருந்து முழுமையாக நீக்கப்படும். எதிர்காலத்தில் மீண்டும் இந்த மொபைல் எண் அல்லது மின்னஞ்சல் மூலம் புதிதாக பதிவு செய்யலாம்.'
+                : 'Your profile, photos, voice notes, and all associated data will be completely removed from our platform. Your mobile number and email will be freed for future registrations.'}
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={deletingAccount}
+                className="px-4 py-2 text-xs sm:text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              >
+                {isTamil ? 'ரத்து செய்' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="px-5 py-2 text-xs sm:text-sm font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-lg transition shadow flex items-center gap-2 disabled:opacity-50"
+              >
+                <FaTrash className="text-xs" />
+                <span>
+                  {deletingAccount
+                    ? (isTamil ? 'நீக்கப்படுகிறது...' : 'Deleting...')
+                    : (isTamil ? 'ஆம், கணக்கை நீக்கு' : 'Yes, Delete Account')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && <Toast toast={toast} onClose={() => setToast(null)} />}

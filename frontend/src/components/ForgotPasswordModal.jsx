@@ -77,6 +77,15 @@ export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
       return;
     }
 
+    if (needsEmailInput && !emailInput.trim()) {
+      setErrorMsg(
+        isTamil
+          ? 'தயவுசெய்து OTP பெறுவதற்கு உங்கள் மின்னஞ்சல் முகவரியை உள்ளிடவும்.'
+          : 'Please enter your email address to receive the verification OTP.'
+      );
+      return;
+    }
+
     setLoading(true);
     setErrorMsg('');
     setInfoMsg('');
@@ -105,9 +114,13 @@ export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
         );
       } else if (data.needsEmailInput) {
         setNeedsEmailInput(true);
-        setErrorMsg(data.message || (isTamil
-          ? 'இந்த சுயவிவரத்தில் மின்னஞ்சல் இல்லை. OTP பெற மின்னஞ்சல் முகவரியை உள்ளிடவும்.'
-          : 'This profile has no email address. Enter an email to receive the OTP.'));
+        if (data.userId) setUserId(data.userId);
+        setErrorMsg(
+          data.message ||
+            (isTamil
+              ? 'உங்கள் கணக்கில் மின்னஞ்சல் முகவரி இல்லை. OTP பெற உங்கள் மின்னஞ்சலை உள்ளிடவும்.'
+              : 'Please enter your email address to receive the verification OTP.')
+        );
       } else {
         setErrorMsg(data.message || (isTamil ? 'OTP அனுப்ப இயலவில்லை.' : 'Failed to send OTP.'));
       }
@@ -278,7 +291,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder={isTamil ? 'எ.கா: user@gmail.com அல்லது 9876543210 அல்லது TN-1002' : 'e.g. user@gmail.com or 9876543210 or TN-1002'}
+                    placeholder={isTamil ? 'எ.கா: user@gmail.com அல்லது TN-1002' : 'e.g. user@gmail.com or TN-1002'}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#c5b597] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
                   />
                 </div>
@@ -287,32 +300,33 @@ export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
                     ? 'உங்கள் கணக்குடன் இணைக்கப்பட்ட மின்னஞ்சல் முகவரிக்கு 6-இலக்க OTP சரிபார்ப்புக் குறியீடு அனுப்பப்படும்.'
                     : 'We will send a 6-digit OTP verification code to your registered email address.'}
                 </p>
-                {needsEmailInput && (
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg space-y-1.5">
-                    <label className="block text-xs font-bold text-amber-900">
-                      {isTamil ? 'உங்கள் மின்னஞ்சல் முகவரியை உள்ளிடவும் *' : 'This profile has no email. Enter an email address *'}
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <FaEnvelope />
-                      </span>
-                      <input
-                        type="email"
-                        required
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        placeholder="e.g. yourname@gmail.com"
-                        className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-amber-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
-                      />
-                    </div>
-                    <p className="text-[11px] text-amber-800">
-                      {isTamil
-                        ? 'கடவுச்சொல் மீட்பு OTP இந்த முகவரிக்கு அனுப்பப்படும்.'
-                        : 'The password reset OTP will be sent to this address and saved to your profile.'}
-                    </p>
-                  </div>
-                )}
               </div>
+
+              {needsEmailInput && (
+                <div className="animate-fadeIn p-3 bg-amber-50 border border-amber-300 rounded-lg space-y-1.5">
+                  <label className="block text-xs font-bold text-amber-900">
+                    {isTamil ? 'OTP பெற உங்கள் மின்னஞ்சல் முகவரியை உள்ளிடவும் *' : 'Enter your Email Address to receive OTP *'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <FaEnvelope />
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="e.g. yourname@gmail.com"
+                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-amber-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-semibold shadow-inner"
+                    />
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    {isTamil
+                      ? 'இந்த மின்னஞ்சலுக்கு கடவுச்சொல் மீட்பு குறியீடு அனுப்பப்படும்.'
+                      : 'The reset OTP code will be sent to this email address.'}
+                  </p>
+                </div>
+              )}
 
               <div className="pt-2">
                 <button

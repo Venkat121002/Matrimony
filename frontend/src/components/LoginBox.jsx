@@ -66,10 +66,14 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
             {isTamil ? 'மொபைல் எண் (Mobile number)' : 'Mobile number'}
           </label>
           <input
-            type="text"
+            type="tel"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-1.5 text-sm bg-white border border-[#c5b597] rounded focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-800 placeholder-gray-400 shadow-inner"
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^0-9]/g, '');
+              if (val.length <= 10) setUsername(val);
+            }}
+            maxLength={10}
+            className="w-full px-3 py-1.5 text-sm bg-white border border-[#c5b597] rounded focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-800 placeholder-gray-400 shadow-inner font-mono"
             required
           />
         </div>
@@ -129,4 +133,3 @@ export default function LoginBox({ onLoginSuccess, onOpenVideo, onOpenRegister, 
     </div>
   );
 }
-

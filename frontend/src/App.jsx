@@ -3,7 +3,7 @@ import Header from './components/Header';
 import GenderRadioBar from './components/GenderRadioBar';
 import ProfileCard from './components/ProfileCard';
 import LoginBox from './components/LoginBox';
-import AppDownloadBox from './components/AppDownloadBox';
+// AppDownloadBox removed from home page
 import RegistrationBanner from './components/RegistrationBanner';
 import MenuDropdown from './components/MenuDropdown';
 import FilterBox from './components/FilterBox';
@@ -27,13 +27,45 @@ import {
   FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
-  FaHeart,
   FaUserCheck,
   FaExclamationTriangle,
   FaShieldAlt,
   FaCrown,
+  FaGlobe,
 } from 'react-icons/fa';
 import { useLanguage } from './context/LanguageContext';
+
+const heightInCentimeters = (profile) => {
+  const height = String(profile.height || '').trim();
+  const centimeters = height.match(/(\d{2,3}(?:\.\d+)?)\s*cm\b/i);
+  if (centimeters) return Number(centimeters[1]);
+
+  const feetAndInches = height.match(/(\d)\s*(?:ft|feet|foot|')\s*(\d{1,2})?/i);
+  if (feetAndInches) {
+    return (Number(feetAndInches[1]) * 12 + Number(feetAndInches[2] || 0)) * 2.54;
+  }
+
+  // Existing profiles encode feet and inches as values such as "5.6 அடி".
+  const legacyFeetAndInches = height.match(/^\s*(\d)\.(\d{1,2})\b/);
+  if (legacyFeetAndInches) {
+    return (Number(legacyFeetAndInches[1]) * 12 + Number(legacyFeetAndInches[2])) * 2.54;
+  }
+
+  const numericHeight = Number(profile.heightNum);
+  if (!Number.isFinite(numericHeight)) return null;
+  if (numericHeight >= 100) return numericHeight;
+  const feet = Math.floor(numericHeight);
+  const inches = Math.round((numericHeight - feet) * 10);
+  return (feet * 12 + inches) * 2.54;
+};
+
+const isOverseasProfile = (profile) => {
+  const isNonIndian = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return Boolean(normalized && !['india', 'indian', 'indian citizen'].includes(normalized));
+  };
+  return profile.isOverseas === true || isNonIndian(profile.citizenship) || isNonIndian(profile.countryOfResidence);
+};
 
 export default function App() {
   const { t, isTamil, translateName } = useLanguage();
@@ -85,7 +117,7 @@ export default function App() {
       nativePlace: '',
       workplace: '',
       ageFrom: 18,
-      ageTo: 60,
+      ageTo: 80,
       minHeight: 'all',
       minSalary: 'all',
       partnerPrefKeyword: '',
@@ -209,7 +241,9 @@ export default function App() {
         params.append('searchId', searchId.trim());
       }
 
-      const res = await fetch(`/api/profiles?${params.toString()}`);
+      const token = localStorage.getItem('nikah_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`/api/profiles?${params.toString()}`, { headers });
       const data = await res.json();
 
       if (data.success && Array.isArray(data.profiles)) {
@@ -295,7 +329,11 @@ export default function App() {
       return; // Logged in user cannot switch between groom and bride
     }
     setSelectedGender(val);
-    setFilters((prev) => ({ ...prev, gender: val }));
+    setFilters((prev) => ({
+      ...prev,
+      gender: val,
+      ...(val !== 'bride' ? { employmentStatus: 'all' } : {}),
+    }));
     setCurrentPage(1);
   };
 
@@ -304,7 +342,11 @@ export default function App() {
       return; // Gender is locked for logged-in accounts
     }
     setFilters((prev) => {
-      const next = { ...prev, [field]: val };
+      const next = {
+        ...prev,
+        [field]: val,
+        ...(field === 'gender' && val !== 'bride' ? { employmentStatus: 'all' } : {}),
+      };
       if (field === 'gender') {
         setSelectedGender(val);
       }
@@ -325,7 +367,7 @@ export default function App() {
       nativePlace: '',
       workplace: '',
       ageFrom: 18,
-      ageTo: 60,
+      ageTo: 80,
       minHeight: 'all',
       minSalary: 'all',
       partnerPrefKeyword: '',
@@ -432,7 +474,7 @@ export default function App() {
     localStorage.removeItem('nikah_user');
     setCurrentUser(null);
     setSelectedGender('all');
-    setFilters((prev) => ({ ...prev, gender: 'all' }));
+    setFilters((prev) => ({ ...prev, gender: 'all', employmentStatus: 'all' }));
     showToast(isTamil ? 'வெற்றிகரமாக வெளியேறிவிட்டீர்கள்.' : 'Logged out successfully.', 'info');
   };
 
@@ -527,11 +569,7 @@ export default function App() {
 
       // 0. Foreign Only View Filter
       if (isForeignView) {
-        const isForeignCandidate =
-          p.isOverseas === true ||
-          (p.citizenship && p.citizenship !== 'Indian Citizen') ||
-          (p.countryOfResidence && p.countryOfResidence !== 'India');
-        if (!isForeignCandidate) {
+        if (!isOverseasProfile(p)) {
           return false;
         }
 
@@ -588,9 +626,12 @@ export default function App() {
 
       // 5. Employment / Occupation Filter
       if (filters.employmentStatus && filters.employmentStatus !== 'all') {
-        const empQuery = filters.employmentStatus.toLowerCase();
-        const pOcc = (p.occupation || p.profession || '').toLowerCase();
-        if (empQuery === 'homemaker' && !pOcc.includes('இல்லத்தரசி') && !pOcc.includes('homemaker')) return false;
+        const employmentStatus = currentUser?.gender === 'bride' && filters.employmentStatus === 'homemaker'
+          ? 'all'
+          : filters.employmentStatus;
+        const empQuery = employmentStatus.toLowerCase();
+        const pOcc = `${p.occupation || p.profession || ''} ${p.workPreferences?.brideWorkStatus || ''} ${p.workPreference || ''}`.toLowerCase();
+        if (empQuery === 'homemaker' && !pOcc.includes('இல்லத்தரசி') && !pOcc.includes('homemaker') && !pOcc.includes('wont_work') && !pOcc.includes('will_not_work') && !pOcc.includes('will not work')) return false;
         if (empQuery === 'it_software' && !pOcc.includes('software') && !pOcc.includes('it') && !pOcc.includes('மென்பொருள்') && !pOcc.includes('developer')) return false;
         if (empQuery === 'govt_bank' && !pOcc.includes('govt') && !pOcc.includes('bank') && !pOcc.includes('அரசு')) return false;
         if (empQuery === 'business' && !pOcc.includes('business') && !pOcc.includes('வணிகம்') && !pOcc.includes('தொழில்')) return false;
@@ -598,16 +639,23 @@ export default function App() {
         if (empQuery === 'teacher' && !pOcc.includes('teacher') && !pOcc.includes('professor') && !pOcc.includes('ஆசிரியர்')) return false;
       }
 
-      // 6. Age Range
+      // 6. Minimum Height
+      if (filters.minHeight && filters.minHeight !== 'all') {
+        const minHeight = Number(filters.minHeight);
+        const profileHeight = heightInCentimeters(p);
+        if (Number.isFinite(minHeight) && (profileHeight === null || profileHeight < minHeight)) return false;
+      }
+
+      // 7. Age Range
       if (filters.ageFrom && p.age < Number(filters.ageFrom)) return false;
       if (filters.ageTo && p.age > Number(filters.ageTo)) return false;
 
-      // 7. Marital Status
+      // 8. Marital Status
       if (filters.maritalStatus && filters.maritalStatus !== 'அனைத்தும்') {
         if (p.maritalStatus !== filters.maritalStatus) return false;
       }
 
-      // 8. Language Filter
+      // 9. Language Filter
       if (filters.language && filters.language !== 'அனைத்தும்') {
         if (p.language && p.language !== filters.language) return false;
       }
@@ -665,6 +713,31 @@ export default function App() {
 
       {/* 3. Main Content Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-2 sm:px-4 py-4 space-y-4">
+        {currentUser && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsForeignView((previous) => !previous);
+                setForeignCitizenshipFilter('all');
+                setCurrentPage(1);
+              }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-bold text-xs sm:text-sm transition ${
+                isForeignView
+                  ? 'bg-[#caa85d] border-[#8a6d2f] text-[#163828]'
+                  : 'bg-[#163828] border-[#caa85d] text-[#edd48e] hover:bg-[#25583f]'
+              }`}
+            >
+              <FaGlobe />
+              <span>
+                {isTamil
+                  ? (isForeignView ? 'அனைத்து வரன்களையும் காண்க' : 'வெளிநாட்டு வரன்களை மட்டும் காண்க')
+                  : (isForeignView ? 'View All Profiles' : 'View Only Overseas Profiles')}
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Mobile Sidebar Trigger Menu & Quick Controls */}
         <div className="lg:hidden space-y-3">
           {!currentUser && (
@@ -676,20 +749,10 @@ export default function App() {
             />
           )}
 
-          <MenuDropdown
-            onGoHome={() => {
-              handleResetFilters();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenRegister={handleOpenRegistration}
-            onOpenLogin={() => setIsLoginOpen(true)}
-            onOpenAbout={() => setIsAboutOpen(true)}
-            onOpenContact={() => setIsContactOpen(true)}
-          />
-
           <FilterBox
             filters={filters}
             searchId={searchId}
+            currentUser={currentUser}
             onSearchId={(id) => {
               setSearchId(id);
               setVisibleCount(6);
@@ -702,17 +765,14 @@ export default function App() {
           />
 
           <WarningBoxes />
-          <AppDownloadBox
-            onDownloadClick={() => showToast(isTamil ? 'Google Play செயலியை பதிவிறக்கம் செய்ய கிளிக் செய்யப்பட்டது.' : 'Google Play app download clicked.', 'info')}
-          />
         </div>
 
         {/* 2-Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* LEFT COLUMN: Registration Banner, KYC Verification Notice & Profiles */}
           <div className="lg:col-span-8 space-y-4">
-            {/* Overseas Section Banner or Prompt Switcher */}
-            {isForeignView ? (
+            {/* Overseas profiles are available only when explicitly selected. */}
+            {isForeignView && (
               <OverseasSectionBanner
                 activeCountry={foreignCitizenshipFilter}
                 onSelectCountry={(countryCode) => {
@@ -726,46 +786,6 @@ export default function App() {
                   setVisibleCount(6);
                 }}
               />
-            ) : (
-              <div className="bg-gradient-to-r from-[#173d2b] via-[#24583f] to-[#173d2b] border-2 border-[#caa85d] rounded-2xl p-3.5 sm:p-4 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 relative overflow-hidden">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-400 text-gray-950 flex items-center justify-center text-lg flex-shrink-0 shadow-md">
-                    🌍
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded bg-amber-400 text-gray-950 font-black text-[10px] uppercase tracking-wider">
-                        {isTamil ? 'பிரத்யேக பகுதி' : 'Exclusive'}
-                      </span>
-                      <span className="text-[11px] text-amber-200 font-semibold">
-                        {isTamil
-                          ? 'சிங்கப்பூர் • மலேசியா • துபாய் • UK • USA'
-                          : 'Singapore • Malaysia • UAE • Saudi • UK • USA'}
-                      </span>
-                    </div>
-                    <h3 className="font-extrabold text-xs sm:text-sm text-amber-100 tracking-wide mt-0.5">
-                      {isTamil
-                        ? 'வெளிநாட்டு / அயல்நாட்டு வரன்களை மட்டும் பார்க்க வேண்டுமா?'
-                        : 'Looking for Foreign Citizens / Overseas Profiles Only?'}
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForeignView(true);
-                      setForeignCitizenshipFilter('all');
-                      setVisibleCount(6);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl font-extrabold text-xs bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-200 shadow-md transition-all hover:scale-105 flex items-center justify-center gap-1.5"
-                  >
-                    <span>🌍 {isTamil ? 'வெளிநாட்டு வரன்கள் மட்டும் பார்க்க' : 'View Foreign Only'}</span>
-                  </button>
-                </div>
-              </div>
             )}
 
             {/* 🌟 Running Horizontal Profile Bar (Featured Brides & Grooms) */}
@@ -818,21 +838,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Results Count & Shortlist Quick Status */}
-            <div id="profiles-list-section" className="flex items-center justify-between px-2 py-1 text-xs text-gray-700 font-semibold border-b border-[#dfd2ba]">
-              <span>
-                {t('totalProfiles')}{' '}
-                <strong className="text-[#163828] text-sm">{filteredProfiles.length}</strong>
-                {searchId && <span className="ml-1 text-amber-800">(ID: {searchId})</span>}
-              </span>
-              <div className="flex items-center gap-1.5 text-xs text-[#8a6d2f] font-bold">
-                <FaHeart className="text-red-500" />
-                <span>{t('shortlistedProfiles')} {shortlistedIds.length}</span>
-              </div>
-            </div>
-
             {/* Profile Cards Listing (Strictly Verified Profiles) */}
-            <div className="space-y-4 pt-1">
+            <div id="profiles-list-section" className="space-y-4 pt-1">
               {displayedProfiles.length > 0 ? (
                 displayedProfiles.map((profile) => (
                   <ProfileCard
@@ -963,20 +970,10 @@ export default function App() {
               />
             )}
 
-            <MenuDropdown
-              onGoHome={() => {
-                handleResetFilters();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onOpenRegister={handleOpenRegistration}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              onOpenAbout={() => setIsAboutOpen(true)}
-              onOpenContact={() => setIsContactOpen(true)}
-            />
-
             <FilterBox
               filters={filters}
               searchId={searchId}
+              currentUser={currentUser}
               onSearchId={(id) => {
                 setSearchId(id);
                 setVisibleCount(6);
@@ -989,9 +986,6 @@ export default function App() {
             />
 
             <WarningBoxes />
-            <AppDownloadBox
-              onDownloadClick={() => showToast(isTamil ? 'Google Play செயலியை பதிவிறக்கம் செய்ய கிளிக் செய்யப்பட்டது.' : 'Google Play app download clicked.', 'info')}
-            />
 
 
           </aside>

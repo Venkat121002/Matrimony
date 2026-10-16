@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { FaTimes, FaHeadset, FaPaperPlane, FaPhoneAlt, FaEnvelope } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import useTamilTransliteration from '../utils/useTamilTransliteration';
 
 export default function SupportModal({ isOpen, onClose, user }) {
   const { t, isTamil } = useLanguage();
@@ -16,6 +17,33 @@ export default function SupportModal({ isOpen, onClose, user }) {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const nameInput = useRef(null);
+  const subjectInput = useRef(null);
+  const messageInput = useRef(null);
+  const handleTamilFieldChange = (e) => {
+    setFormData((current) => ({ ...current, [e.target.name]: e.target.value }));
+  };
+  const { handleChange: handleNameChange, handleBlur: handleNameBlur } = useTamilTransliteration({
+    value: formData.name,
+    onChange: handleTamilFieldChange,
+    isTamil,
+    name: 'name',
+    inputRef: nameInput,
+  });
+  const { handleChange: handleSubjectChange, handleBlur: handleSubjectBlur } = useTamilTransliteration({
+    value: formData.subject,
+    onChange: handleTamilFieldChange,
+    isTamil,
+    name: 'subject',
+    inputRef: subjectInput,
+  });
+  const { handleChange: handleMessageChange, handleBlur: handleMessageBlur } = useTamilTransliteration({
+    value: formData.message,
+    onChange: handleTamilFieldChange,
+    isTamil,
+    name: 'message',
+    inputRef: messageInput,
+  });
 
   if (!isOpen) return null;
 
@@ -106,10 +134,12 @@ export default function SupportModal({ isOpen, onClose, user }) {
               {isTamil ? 'உங்கள் பெயர்' : 'Full Name'} *
             </label>
             <input
+              ref={nameInput}
               type="text"
               name="name"
               value={formData.name}
-              onChange={handleChange}
+              onChange={handleNameChange}
+              onBlur={handleNameBlur}
               required
               className="w-full px-3 py-1.5 bg-white border border-[#c5b597] rounded focus:ring-2 focus:ring-[#8a6d2f] text-gray-900"
             />
@@ -149,10 +179,12 @@ export default function SupportModal({ isOpen, onClose, user }) {
               {isTamil ? 'விசாரணை தலைப்பு' : 'Subject'} *
             </label>
             <input
+              ref={subjectInput}
               type="text"
               name="subject"
               value={formData.subject}
-              onChange={handleChange}
+              onChange={handleSubjectChange}
+              onBlur={handleSubjectBlur}
               placeholder={isTamil ? 'எ.கா: வரன் பதிவு உதவி / சுயவிவர திருத்தம்' : 'e.g. Profile Registration Help / Details Update'}
               required
               className="w-full px-3 py-1.5 bg-white border border-[#c5b597] rounded focus:ring-2 focus:ring-[#8a6d2f] text-gray-900"
@@ -164,9 +196,11 @@ export default function SupportModal({ isOpen, onClose, user }) {
               {isTamil ? 'செய்தி / விபரம்' : 'Message Details'} *
             </label>
             <textarea
+              ref={messageInput}
               name="message"
               value={formData.message}
-              onChange={handleChange}
+              onChange={handleMessageChange}
+              onBlur={handleMessageBlur}
               rows={3}
               placeholder={isTamil ? 'உங்கள் கேள்வியை அல்லது பிரச்சனையை விவரிக்கவும்...' : 'Please describe your request or question...'}
               required

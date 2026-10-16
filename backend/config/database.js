@@ -17,7 +17,7 @@ export const isFirestore = DB_TYPE === 'firestore';
 export const connectDatabase = async () => {
   if (isFirestore) return;
   const { default: mongoose } = await import('mongoose');
-  const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/tamil_nikah';
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/tamil_nikah';
   const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
   console.log(`[Database] MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
 };

@@ -208,6 +208,18 @@ export default function ProfileDetailsModal({
                 value={profile.countryOfResidence}
               />
             )}
+            {Boolean(profile.currentAddress) && (
+              <NeatDetailRow
+                label={isTamil ? 'தற்போது வசிக்கும் முகவரி' : 'Current Residing Address'}
+                value={profile.currentAddress}
+              />
+            )}
+            {Boolean(profile.livingYears) && (
+              <NeatDetailRow
+                label={isTamil ? 'அங்கு வசிக்கும் காலம்' : 'Years Living There'}
+                value={profile.livingYears}
+              />
+            )}
           </div>
 
           {/* Section 2: Contact Numbers & Publisher Info */}
@@ -378,10 +390,18 @@ export default function ProfileDetailsModal({
               {/* Father Box */}
               <div className="p-2.5 bg-white/90 rounded-lg border border-[#e2d5bd] space-y-1">
                 <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
-                  👨 {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
+                   {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
                 </span>
                 <div className="text-xs space-y-1 pt-1">
-                  <p><span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherName || profile.fatherName || '—'}</span></p>
+                  <p>
+                    <span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span>{' '}
+                    <span className="font-semibold">{profile.familyDetails?.fatherName || profile.fatherName || '—'}</span>
+                    {(profile.familyDetails?.fatherMarhum || profile.fatherMarhum) && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300">
+                        {isTamil ? 'மர்ஹும்' : 'Marhum / Late'}
+                      </span>
+                    )}
+                  </p>
                   <p><span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherAge ? `${profile.familyDetails.fatherAge} ${isTamil ? 'வயது' : 'Years'}` : '—'}</span></p>
                   <p><span className="font-bold text-gray-700">{isTamil ? 'தொழில்' : 'Occupation'}:</span> <span className="font-semibold">{profile.familyDetails?.fatherOccupation || profile.fatherOccupation || '—'}</span></p>
                 </div>
@@ -390,10 +410,18 @@ export default function ProfileDetailsModal({
               {/* Mother Box */}
               <div className="p-2.5 bg-white/90 rounded-lg border border-[#e2d5bd] space-y-1">
                 <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
-                  👩 {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
+                   {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
                 </span>
                 <div className="text-xs space-y-1 pt-1">
-                  <p><span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span> <span className="font-semibold">{profile.familyDetails?.motherName || profile.motherName || '—'}</span></p>
+                  <p>
+                    <span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span>{' '}
+                    <span className="font-semibold">{profile.familyDetails?.motherName || profile.motherName || '—'}</span>
+                    {(profile.familyDetails?.motherMarhum || profile.motherMarhum) && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300">
+                        {isTamil ? 'மர்ஹும்' : 'Marhum / Late'}
+                      </span>
+                    )}
+                  </p>
                   <p><span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span> <span className="font-semibold">{profile.familyDetails?.motherAge ? `${profile.familyDetails.motherAge} ${isTamil ? 'வயது' : 'Years'}` : '—'}</span></p>
                   <p><span className="font-bold text-gray-700">{isTamil ? 'தொழில்' : 'Occupation'}:</span> <span className="font-semibold">{profile.familyDetails?.motherOccupation || profile.motherOccupation || (isTamil ? 'இல்லத்தரசி (Home Maker)' : 'Home Maker')}</span></p>
                 </div>

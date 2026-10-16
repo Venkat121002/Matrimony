@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
+      required: true,
       lowercase: true,
       trim: true,
       unique: true,
@@ -187,9 +188,11 @@ const userSchema = new mongoose.Schema(
       fatherName: { type: String, default: '' },
       fatherAge: { type: Number, default: 55 },
       fatherOccupation: { type: String, default: '' },
+      fatherMarhum: { type: Boolean, default: false },
       motherName: { type: String, default: '' },
       motherAge: { type: Number, default: 50 },
       motherOccupation: { type: String, default: '' },
+      motherMarhum: { type: Boolean, default: false },
       siblingsCount: { type: Number, default: 0 },
       siblings: [
         {

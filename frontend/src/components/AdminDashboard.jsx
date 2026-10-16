@@ -250,8 +250,8 @@ export default function AdminDashboard({ isOpen, onClose, onRefreshProfiles }) {
         {/* Admin Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] text-white flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="p-1.5 rounded-lg bg-amber-400 text-gray-950 font-black text-sm">
-              <FaShieldAlt />
+            <span className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border-2 border-amber-300 shadow-sm flex-shrink-0 bg-white p-0.5">
+              <img src="/logo.png" alt="Tamil Muslim Nikkah Logo" className="w-full h-full object-cover rounded-full" />
             </span>
             <div>
               <h2 className="font-extrabold text-base sm:text-lg text-[#fffae6] tracking-wide font-cinzel">

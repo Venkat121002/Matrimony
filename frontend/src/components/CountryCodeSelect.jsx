@@ -100,7 +100,7 @@ export default function CountryCodeSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         title={selectedCountry?.name || 'Country Calling Code'}
-        className={`h-full min-h-[38px] px-2.5 py-1.5 bg-gradient-to-b from-[#fbf8f2] to-[#f4ebe1] hover:from-[#f6f0e4] hover:to-[#efe3d3] border border-[#c5b597] hover:border-[#8a6d2f] text-gray-900 rounded-md shadow-sm transition flex items-center gap-1.5 font-mono text-xs sm:text-sm font-bold select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] ${
+        className={`h-[42px] px-2.5 py-1.5 bg-gradient-to-b from-[#fbf8f2] to-[#f4ebe1] hover:from-[#f6f0e4] hover:to-[#efe3d3] border border-[#c5b597] hover:border-[#8a6d2f] text-gray-900 rounded-lg shadow-sm transition flex items-center gap-1.5 font-mono text-xs sm:text-sm font-bold select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] ${
           disabled ? 'opacity-50 cursor-not-allowed' : ''
         } ${isOpen ? 'ring-2 ring-[#8a6d2f] border-[#8a6d2f]' : ''}`}
       >

@@ -1,3 +1,4 @@
+import path from 'path';
 import jwt from 'jsonwebtoken';
 import {
   createUser,
@@ -7,12 +8,14 @@ import {
   checkTrialStatus,
   updateUser,
   getUserById,
+  deleteUserById,
   setResetOtp,
   verifyResetOtp,
   checkResetOtpVerified,
   setUserPassword,
 } from '../models/users.js';
-import { countViewsInMonth, currentMonthYear } from '../models/profileViews.js';
+import { countViewsInMonth, currentMonthYear, deleteViewsForUser } from '../models/profileViews.js';
+import { deleteStoredFile } from '../middleware/uploadMiddleware.js';
 import { getJwtSecret } from '../config/secrets.js';
 import { sendWelcomeEmail, sendPasswordResetOtpEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
@@ -72,9 +75,11 @@ export const register = async (req, res) => {
       fatherName,
       fatherAge,
       fatherOccupation,
+      fatherMarhum,
       motherName,
       motherAge,
       motherOccupation,
+      motherMarhum,
       siblings,
       siblingsCount,
       elderSister,
@@ -95,6 +100,20 @@ export const register = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Name is required.',
+      });
+    }
+
+    const resolvedEmail = String(email || '').trim().toLowerCase();
+    if (!resolvedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required.',
+      });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address.',
       });
     }
 
@@ -155,11 +174,6 @@ export const register = async (req, res) => {
       }
     }
 
-    // Fallback email if omitted
-    const resolvedEmail = email && email.trim()
-      ? email.toLowerCase().trim()
-      : `${finalPhone.replace(/\D/g, '')}@tamilnikah.com`;
-
     // Check if user already exists with this phone or email
     const phoneDigits = finalPhone.replace(/\D/g, '');
     const cleanPhoneDigits = cleanPhone.replace(/\D/g, '');
@@ -198,15 +212,37 @@ export const register = async (req, res) => {
       );
     }
 
-    const existingUser = await findUserByIdentifiers({
+    // Also include any additional phone variants
+    for (const addP of parsedAdditionalPhones) {
+      const addClean = String(addP).trim();
+      if (addClean) {
+        phoneVariants.push(addClean);
+        const addD = addClean.replace(/\D/g, '');
+        if (addD) phoneVariants.push(addD);
+      }
+    }
+
+    const existingPhoneUser = await findUserByIdentifiers({
       phones: phoneVariants,
-      emails: resolvedEmail && !resolvedEmail.endsWith('@tamilnikah.com') ? [resolvedEmail] : [],
     });
 
-    if (existingUser) {
+    if (existingPhoneUser && existingPhoneUser.role !== 'admin') {
       return res.status(400).json({
         success: false,
-        message: 'An account with this mobile number already exists.',
+        field: 'phone',
+        message: 'An account with this mobile number already exists. If you have an account, please log in.',
+      });
+    }
+
+    const existingEmailUser = await findUserByIdentifiers({
+      emails: [resolvedEmail],
+    });
+
+    if (existingEmailUser && existingEmailUser.role !== 'admin') {
+      return res.status(400).json({
+        success: false,
+        field: 'email',
+        message: 'An account with this email address already exists. Please use a different email or log in.',
       });
     }
 
@@ -334,9 +370,11 @@ export const register = async (req, res) => {
         fatherName: (fatherName || '').trim(),
         fatherAge: Number(fatherAge) || 55,
         fatherOccupation: (fatherOccupation || '').trim(),
+        fatherMarhum: Boolean(fatherMarhum === 'true' || fatherMarhum === true),
         motherName: (motherName || '').trim(),
         motherAge: Number(motherAge) || 50,
         motherOccupation: (motherOccupation || '').trim(),
+        motherMarhum: Boolean(motherMarhum === 'true' || motherMarhum === true),
         siblingsCount: parsedSiblings.length || Number(siblingsCount) || 0,
         siblings: parsedSiblings,
         siblingDetails: {
@@ -368,12 +406,10 @@ export const register = async (req, res) => {
       monthlyViewsCount: 0,
     });
 
-    // Trigger transactional welcome email in background if valid email
-    if (resolvedEmail && !resolvedEmail.endsWith('@tamilnikah.com')) {
-      sendWelcomeEmail(newUser).catch((err) =>
-        console.error('[Email Worker] Welcome email failure:', err.message)
-      );
-    }
+    // Trigger the transactional welcome email in the background.
+    sendWelcomeEmail(newUser).catch((err) =>
+      console.error('[Email Worker] Welcome email failure:', err.message)
+    );
 
     // Trigger match recommendation emails to suitable Premium members in background
     notifyMatchingPremiumUsers(newUser).catch((err) =>
@@ -390,6 +426,24 @@ export const register = async (req, res) => {
     });
   } catch (err) {
     console.error('[Register Error]:', err);
+    if (err.code === 11000) {
+      const isEmail = err.keyPattern?.email || (err.message && err.message.includes('email'));
+      const isPhone = err.keyPattern?.phone || (err.message && err.message.includes('phone'));
+      if (isEmail) {
+        return res.status(400).json({
+          success: false,
+          field: 'email',
+          message: 'An account with this email address already exists. Please use a different email or log in.',
+        });
+      }
+      if (isPhone) {
+        return res.status(400).json({
+          success: false,
+          field: 'phone',
+          message: 'An account with this mobile number already exists. If you have an account, please log in.',
+        });
+      }
+    }
     res.status(500).json({
       success: false,
       message: err.message || 'An error occurred during registration.',
@@ -569,15 +623,28 @@ export const updateMe = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
+    const normalizedEmail = String(req.body.email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+      return res.status(400).json({ success: false, message: 'Email address is required.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
+    }
+    const existingEmailOwner = await findUserByIdentifiers({ emails: [normalizedEmail] });
+    if (existingEmailOwner && String(existingEmailOwner._id) !== String(user._id)) {
+      return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
+    }
+
     // List of allowed fields to update
     const allowedFields = [
-      'fullName', 'fullNameEn', 'dateOfBirth', 'age', 'gender', 'maritalStatus', 'maritalStatusEn',
+      'fullName', 'fullNameEn', 'email', 'phone', 'dateOfBirth', 'age', 'gender', 'maritalStatus', 'maritalStatusEn',
       'height', 'heightEn', 'weight', 'weightEn', 'complexion', 'complexionEn', 'language', 'motherTongue', 'motherTongueEn',
       'location', 'nativePlace', 'nativePlaceEn', 'district', 'state', 'stateEn', 'citizenship', 'citizenshipEn',
       'workplace', 'workplaceEn', 'workingYearsInTitleLocation', 'countryOfResidence', 'isOverseas',
       'education', 'educationEn', 'occupation', 'profession', 'professionEn', 'monthlyIncome', 'income', 'incomeEn',
       'property', 'propertyEn', 'properties', 'propertiesEn', 'requirement', 'requirementEn', 'bio', 'description',
-      'publisherName', 'publisherRelationship', 'countryCode'
+      'publisherName', 'publisherRelationship', 'countryCode',
+      'currentAddress', 'livingYears'
     ];
 
     allowedFields.forEach((field) => {
@@ -587,6 +654,7 @@ export const updateMe = async (req, res) => {
         user[field] = value;
       }
     });
+    user.email = normalizedEmail;
     if (req.body.isOverseas !== undefined) {
       user.isOverseas = req.body.isOverseas === 'true' || req.body.isOverseas === true;
     }
@@ -646,9 +714,11 @@ export const updateMe = async (req, res) => {
       if (req.body.fatherName !== undefined) user.familyDetails.fatherName = req.body.fatherName.trim();
       if (req.body.fatherAge !== undefined) user.familyDetails.fatherAge = Number(req.body.fatherAge) || user.familyDetails.fatherAge;
       if (req.body.fatherOccupation !== undefined) user.familyDetails.fatherOccupation = req.body.fatherOccupation.trim();
+      if (req.body.fatherMarhum !== undefined) user.familyDetails.fatherMarhum = req.body.fatherMarhum === 'true' || req.body.fatherMarhum === true;
       if (req.body.motherName !== undefined) user.familyDetails.motherName = req.body.motherName.trim();
       if (req.body.motherAge !== undefined) user.familyDetails.motherAge = Number(req.body.motherAge) || user.familyDetails.motherAge;
       if (req.body.motherOccupation !== undefined) user.familyDetails.motherOccupation = req.body.motherOccupation.trim();
+      if (req.body.motherMarhum !== undefined) user.familyDetails.motherMarhum = req.body.motherMarhum === 'true' || req.body.motherMarhum === true;
       if (req.body.siblings !== undefined) {
         try {
           const s = typeof req.body.siblings === 'string' ? JSON.parse(req.body.siblings) : req.body.siblings;
@@ -981,3 +1051,53 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+
+/**
+ * Permanently Delete Current User Account
+ * DELETE /api/auth/me
+ */
+export const deleteMe = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    // Policy check: Exactly after 1 month from registration according to policy
+    const regDate = user.createdAt ? new Date(user.createdAt) : null;
+    const minActive = user.minimumActiveUntil ? new Date(user.minimumActiveUntil) : null;
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const isOneMonthPassed = minActive
+      ? new Date() >= minActive
+      : (regDate && (Date.now() - regDate.getTime()) >= ONE_MONTH_MS);
+
+    if (!isOneMonthPassed) {
+      return res.status(403).json({
+        success: false,
+        message: 'According to our registration policy, account deletion is available only after 1 month from registration.',
+      });
+    }
+
+    // Remove user stored media files and KYC
+    const mediaFiles = [...(user.photos || []), user.audioClip?.url].filter(
+      (u) => typeof u === 'string' && u.startsWith('/uploads/media/')
+    );
+    await Promise.all([
+      ...mediaFiles.map((u) => deleteStoredFile('media', path.basename(u)).catch(() => {})),
+      user.kycDocument?.filename ? deleteStoredFile('kyc', user.kycDocument.filename).catch(() => {}) : null,
+      deleteViewsForUser(String(user._id)).catch(() => {}),
+    ]);
+
+    await deleteUserById(user._id);
+
+    res.json({
+      success: true,
+      message: 'Your account and all associated data have been permanently deleted.',
+    });
+  } catch (err) {
+    console.error('[Delete Me Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete account. Please try again later.' });
+  }
+};
+

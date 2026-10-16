@@ -10,6 +10,7 @@ import {
   FaCheckCircle,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import AudioPlayer from './AudioPlayer';
 
 export default function LiveAudioRecorder({
   onAudioReady,
@@ -488,7 +489,10 @@ export default function LiveAudioRecorder({
 
           {/* Audio Player */}
           <div className="pt-0.5">
-            <audio controls src={previewUrl} className="w-full h-8" />
+            <AudioPlayer
+              src={previewUrl}
+              initialDuration={isLiveRecorded && recordingDuration > 0 ? recordingDuration : null}
+            />
           </div>
         </div>
       ) : (

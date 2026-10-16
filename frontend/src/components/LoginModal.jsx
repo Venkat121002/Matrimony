@@ -142,11 +142,14 @@ export default function LoginModal({
             </label>
             <div className="relative">
               <input
-                type="text"
+                type="tel"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                // placeholder={t('phonePlaceholder')}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  if (val.length <= 10) setUsername(val);
+                }}
+                maxLength={10}
+                className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner font-mono"
                 required
                 autoFocus
               />
@@ -214,4 +217,3 @@ export default function LoginModal({
     </div>
   );
 }
-

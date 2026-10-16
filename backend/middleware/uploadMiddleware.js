@@ -108,6 +108,6 @@ export const uploadMedia = [
 ];
 
 // Stream a stored file to the response; returns false if it does not exist.
-export const streamStoredFile = (folder, filename, res, headers = {}) => streamFile(folder, filename, res, headers);
+export const streamStoredFile = (folder, filename, res, headers = {}, req = null) => streamFile(folder, filename, res, headers, req);
 
 export const deleteStoredFile = (folder, filename) => deleteFile(folder, filename);

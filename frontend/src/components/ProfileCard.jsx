@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FaLock, FaStar, FaRegStar, FaTimes, FaUndoAlt, FaCheckCircle, FaMicrophone } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import DefaultAvatar from './DefaultAvatar';
+import AudioPlayer from './AudioPlayer';
 
 export default function ProfileCard({
   profile,
@@ -293,11 +294,9 @@ export default function ProfileCard({
                     <FaMicrophone className="text-rose-600 text-xs" />
                     <span>{isTamil ? 'குரல் பதிவு (Voice Note):' : "Candidate's Voice Note:"}</span>
                   </div>
-                  <audio
-                    controls
+                  <AudioPlayer
                     src={profile.audioClip?.url || profile.audioUrl}
-                    className="w-full h-8"
-                    preload="none"
+                    preload="metadata"
                   />
                 </div>
               )}

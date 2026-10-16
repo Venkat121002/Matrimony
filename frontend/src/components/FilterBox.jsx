@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { FaFilter, FaSearch, FaRedo, FaChevronDown, FaChevronUp, FaBriefcase, FaSlidersH } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import useTamilTransliteration from '../utils/useTamilTransliteration';
 
 export default function FilterBox({
   filters,
   searchId,
+  currentUser,
   onSearchId,
   onFilterChange,
   onResetFilters,
@@ -14,6 +16,34 @@ export default function FilterBox({
   const [isOpen, setIsOpen] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [localSearchId, setLocalSearchId] = useState(searchId || '');
+  const isSearchingBrides = currentUser
+    ? currentUser.gender === 'groom'
+    : filters.gender === 'bride';
+  const nativePlaceInput = useRef(null);
+  const workplaceInput = useRef(null);
+  const partnerPreferenceInput = useRef(null);
+  const onTextFilterChange = (event) => onFilterChange(event.target.name, event.target.value);
+  const { handleChange: handleNativePlaceChange, handleBlur: handleNativePlaceBlur } = useTamilTransliteration({
+    value: filters.nativePlace || '',
+    onChange: onTextFilterChange,
+    isTamil,
+    name: 'nativePlace',
+    inputRef: nativePlaceInput,
+  });
+  const { handleChange: handleWorkplaceChange, handleBlur: handleWorkplaceBlur } = useTamilTransliteration({
+    value: filters.workplace || '',
+    onChange: onTextFilterChange,
+    isTamil,
+    name: 'workplace',
+    inputRef: workplaceInput,
+  });
+  const { handleChange: handlePartnerPreferenceChange, handleBlur: handlePartnerPreferenceBlur } = useTamilTransliteration({
+    value: filters.partnerPrefKeyword || '',
+    onChange: onTextFilterChange,
+    isTamil,
+    name: 'partnerPrefKeyword',
+    inputRef: partnerPreferenceInput,
+  });
 
   const maritalStatusOptions = [
     { value: 'அனைத்தும்', label: t('allOptions') },
@@ -36,17 +66,9 @@ export default function FilterBox({
     { value: 'medical', label: isTamil ? 'மருத்துவம் / நர்சிங் (Medical / Healthcare)' : 'Doctor / Medical / Nursing' },
     { value: 'teacher', label: isTamil ? 'ஆசிரியர் / கல்வி (Teaching / Education)' : 'Teacher / Professor' },
     { value: 'private', label: isTamil ? 'தனியார் பணி (Private Company)' : 'Private Sector' },
-    { value: 'homemaker', label: isTamil ? 'இல்லத்தரசி (Homemaker)' : 'Homemaker' },
-  ];
-
-  const minHeightOptions = [
-    { value: 'all', label: t('allHeights') },
-    { value: '5.0', label: '5.0 ft (152 cm) +' },
-    { value: '5.2', label: '5.2 ft (158 cm) +' },
-    { value: '5.4', label: '5.4 ft (165 cm) +' },
-    { value: '5.6', label: '5.6 ft (170 cm) +' },
-    { value: '5.8', label: '5.8 ft (175 cm) +' },
-    { value: '5.10', label: '5.10 ft (178 cm) +' },
+    ...(isSearchingBrides
+      ? [{ value: 'homemaker', label: isTamil ? 'இல்லத்தரசி (Homemaker)' : 'Homemaker' }]
+      : []),
   ];
 
   const minSalaryOptions = [
@@ -59,7 +81,7 @@ export default function FilterBox({
   ];
 
   const ageList = [];
-  for (let a = 18; a <= 60; a++) {
+  for (let a = 18; a <= 80; a++) {
     ageList.push(a);
   }
 
@@ -131,20 +153,22 @@ export default function FilterBox({
           {/* Core Basic Filters Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
             {/* பாலினம் (Gender) */}
-            <div className="bg-[#f4eedf] p-2 rounded-lg border border-[#dfd2ba]">
-              <label className="block font-bold text-[#35250c] mb-1 text-[11px]">
-                {t('genderLabel')}
-              </label>
-              <select
-                value={filters.gender}
-                onChange={(e) => onFilterChange('gender', e.target.value)}
-                className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
-              >
-                <option value="all">{t('allGendersOption')}</option>
-                <option value="groom">{t('groom')}</option>
-                <option value="bride">{t('bride')}</option>
-              </select>
-            </div>
+            {!currentUser && (
+              <div className="bg-[#f4eedf] p-2 rounded-lg border border-[#dfd2ba]">
+                <label className="block font-bold text-[#35250c] mb-1 text-[11px]">
+                  {t('genderLabel')}
+                </label>
+                <select
+                  value={filters.gender}
+                  onChange={(e) => onFilterChange('gender', e.target.value)}
+                  className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
+                >
+                  <option value="all">{t('allGendersOption')}</option>
+                  <option value="groom">{t('groom')}</option>
+                  <option value="bride">{t('bride')}</option>
+                </select>
+              </div>
+            )}
 
             {/* 1. Employment Status */}
             <div className="bg-[#f4eedf] p-2 rounded-lg border border-[#dfd2ba]">
@@ -153,7 +177,9 @@ export default function FilterBox({
                 <span>1. {t('employmentFilterLabel')}</span>
               </label>
               <select
-                value={filters.employmentStatus || 'all'}
+                value={!isSearchingBrides && filters.employmentStatus === 'homemaker'
+                  ? 'all'
+                  : (filters.employmentStatus || 'all')}
                 onChange={(e) => onFilterChange('employmentStatus', e.target.value)}
                 className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
               >
@@ -171,9 +197,12 @@ export default function FilterBox({
                 2. {isTamil ? 'சொந்த ஊர் / இருப்பிடம் (Native Location)' : 'Native Location'}
               </label>
               <input
+                ref={nativePlaceInput}
                 type="text"
                 value={filters.nativePlace || ''}
-                onChange={(e) => onFilterChange('nativePlace', e.target.value)}
+                name="nativePlace"
+                onChange={handleNativePlaceChange}
+                onBlur={handleNativePlaceBlur}
                 placeholder={isTamil ? 'எ.கா: சென்னை / மதுரை / ராமநாதபுரம்' : 'e.g. Chennai / Madurai / Ramanathapuram'}
                 className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
               />
@@ -186,9 +215,12 @@ export default function FilterBox({
                 <span>3. {isTamil ? 'பணிபுரியும் இடம் (Workplace)' : 'Workplace Location'}</span>
               </label>
               <input
+                ref={workplaceInput}
                 type="text"
                 value={filters.workplace || ''}
-                onChange={(e) => onFilterChange('workplace', e.target.value)}
+                name="workplace"
+                onChange={handleWorkplaceChange}
+                onBlur={handleWorkplaceBlur}
                 placeholder={isTamil ? 'எ.கா: சென்னை / துபாய் / பெங்களூரு' : 'e.g. Chennai / Dubai / Bangalore'}
                 className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
               />
@@ -231,17 +263,25 @@ export default function FilterBox({
               <label className="block font-bold text-[#35250c] mb-1 text-[11px]">
                 5. {t('minHeightLabel')}
               </label>
-              <select
-                value={filters.minHeight || 'all'}
-                onChange={(e) => onFilterChange('minHeight', e.target.value)}
+              <input
+                type="number"
+                min="122"
+                max="214"
+                step="1"
+                list="minimum-height-cm-options"
+                value={filters.minHeight === 'all' ? '' : filters.minHeight}
+                onChange={(e) => onFilterChange('minHeight', e.target.value || 'all')}
+                placeholder={isTamil ? 'அனைத்தும் (செ.மீ.)' : 'All heights (cm)'}
                 className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
-              >
-                {minHeightOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
+              />
+              <datalist id="minimum-height-cm-options">
+                {Array.from({ length: 93 }, (_, index) => 122 + index).map((height) => (
+                  <option key={height} value={height} />
                 ))}
-              </select>
+              </datalist>
+              <p className="mt-1 text-[10px] text-gray-600">
+                {isTamil ? '122–214 செ.மீ. (4′0″–7′0″)' : '122–214 cm (4′0″–7′0″)'}
+              </p>
             </div>
 
             {/* 6. Salary / Income */}
@@ -268,9 +308,12 @@ export default function FilterBox({
                 7. {t('partnerPrefKeywordLabel')}
               </label>
               <input
+                ref={partnerPreferenceInput}
                 type="text"
                 value={filters.partnerPrefKeyword || ''}
-                onChange={(e) => onFilterChange('partnerPrefKeyword', e.target.value)}
+                name="partnerPrefKeyword"
+                onChange={handlePartnerPreferenceChange}
+                onBlur={handlePartnerPreferenceBlur}
                 placeholder={t('partnerPrefKeywordPlaceholder')}
                 className="w-full bg-white border border-[#c4b599] rounded px-2 py-1 text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-[#8a6d2f] shadow-inner font-medium"
               />

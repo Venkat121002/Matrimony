@@ -1,7 +1,26 @@
 import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import TamilInput from './TamilInput';
+import TamilInputBase from './TamilInput';
 import LiveAudioRecorder from './LiveAudioRecorder';
+import AudioPlayer from './AudioPlayer';
+import CountryCodeSelect from './CountryCodeSelect';
+import { COUNTRY_CALLING_CODES, getMaxDigitsForDialCode } from '../data/countryCodes';
+
+const TamilInput = (props) => {
+  const { isTamil } = useLanguage();
+  return <TamilInputBase {...props} showInputTools={isTamil} />;
+};
+
+const parsePhoneWithCountryCode = (phone) => {
+  const value = String(phone || '').trim();
+  const matchingCode = [...new Set(COUNTRY_CALLING_CODES.map(({ dialCode }) => dialCode))]
+    .sort((a, b) => b.length - a.length)
+    .find((dialCode) => value.startsWith(dialCode));
+
+  return matchingCode
+    ? { countryCode: matchingCode, phone: value.slice(matchingCode.length).replace(/\D/g, '') }
+    : { countryCode: '+91', phone: value.replace(/\D/g, '') };
+};
 import {
   FaTrash,
   FaCamera,
@@ -18,14 +37,21 @@ import { TAMIL_NADU_DISTRICTS, DISTRICT_MAP } from '../data/districts';
 
 export default function EditProfileForm({ currentUser, onSave, onCancel }) {
   const { isTamil } = useLanguage();
+  const primaryPhone = parsePhoneWithCountryCode(currentUser.phone);
+  const initialPrimaryCountryCode = currentUser.phone?.trim().startsWith(primaryPhone.countryCode)
+    ? primaryPhone.countryCode
+    : currentUser.countryCode || '+91';
+  const initialAdditionalPhones = Array.isArray(currentUser.additionalPhones) && currentUser.additionalPhones.length > 0
+    ? currentUser.additionalPhones.map(parsePhoneWithCountryCode)
+    : [{ countryCode: initialPrimaryCountryCode, phone: '' }];
 
   const [formData, setFormData] = useState({
     fullName: currentUser.fullName || '',
     fullNameEn: currentUser.fullNameEn || '',
-    phone: currentUser.phone || '',
-    additionalPhones: Array.isArray(currentUser.additionalPhones) && currentUser.additionalPhones.length > 0
-      ? currentUser.additionalPhones
-      : [''],
+    phone: currentUser.phone?.trim().startsWith(primaryPhone.countryCode)
+      ? primaryPhone.phone
+      : String(currentUser.phone || '').replace(/\D/g, ''),
+    additionalPhones: initialAdditionalPhones.map(({ phone }) => phone),
     email: currentUser.email && !currentUser.email.endsWith('@tamilnikah.com') ? currentUser.email : '',
     age: currentUser.age || '',
     gender: currentUser.gender || 'groom',
@@ -36,14 +62,29 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
     education: currentUser.education || '',
     occupation: currentUser.occupation || currentUser.profession || '',
     workplace: currentUser.workplace || '',
+    workingYearsInTitleLocation: currentUser.workingYearsInTitleLocation || '',
     monthlyIncome: currentUser.monthlyIncome || currentUser.income || '',
     properties: currentUser.properties || currentUser.property || '',
+    currentAddress: currentUser.currentAddress || '',
+    livingYears: currentUser.livingYears || '',
+    fatherName: currentUser.familyDetails?.fatherName || currentUser.fatherName || '',
+    fatherAge: currentUser.familyDetails?.fatherAge || currentUser.fatherAge || '55',
+    fatherOccupation: currentUser.familyDetails?.fatherOccupation || currentUser.fatherOccupation || '',
+    fatherMarhum: Boolean(currentUser.familyDetails?.fatherMarhum ?? currentUser.fatherMarhum ?? false),
+    motherName: currentUser.familyDetails?.motherName || currentUser.motherName || '',
+    motherAge: currentUser.familyDetails?.motherAge || currentUser.motherAge || '50',
+    motherOccupation: currentUser.familyDetails?.motherOccupation || currentUser.motherOccupation || '',
+    motherMarhum: Boolean(currentUser.familyDetails?.motherMarhum ?? currentUser.motherMarhum ?? false),
     description: currentUser.description || currentUser.bio || '',
     publisherName: currentUser.publisher?.name || currentUser.publisherName || currentUser.fullName || '',
     publisherRelationship: currentUser.publisher?.relationship || currentUser.publisherRelationship || 'Self',
   });
 
   const [saving, setSaving] = useState(false);
+  const [primaryCountryCode, setPrimaryCountryCode] = useState(initialPrimaryCountryCode);
+  const [additionalCountryCodes, setAdditionalCountryCodes] = useState(
+    initialAdditionalPhones.map(({ countryCode }) => countryCode)
+  );
   const [existingPhotos, setExistingPhotos] = useState(currentUser.photos || []);
   const [newPhotos, setNewPhotos] = useState([]);
   const [newPhotoPreviews, setNewPhotoPreviews] = useState([]);
@@ -57,8 +98,8 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
   const audioInputRef = useRef(null);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleEnglishNameChange = (e) => {
@@ -69,8 +110,21 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
   // Additional Phones Handlers
   const handleAdditionalPhoneChange = (index, value) => {
     const updated = [...formData.additionalPhones];
-    updated[index] = value;
+    updated[index] = value.replace(/\D/g, '').slice(0, getMaxDigitsForDialCode(additionalCountryCodes[index] || '+91'));
     setFormData((prev) => ({ ...prev, additionalPhones: updated }));
+  };
+
+  const handleAdditionalCountryCodeChange = (index, countryCode) => {
+    setAdditionalCountryCodes((prev) => {
+      const updated = [...prev];
+      updated[index] = countryCode;
+      return updated;
+    });
+    setFormData((prev) => {
+      const updated = [...prev.additionalPhones];
+      updated[index] = updated[index].slice(0, getMaxDigitsForDialCode(countryCode));
+      return { ...prev, additionalPhones: updated };
+    });
   };
 
   const handleAddPhoneField = () => {
@@ -79,12 +133,14 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
         ...prev,
         additionalPhones: [...prev.additionalPhones, ''],
       }));
+      setAdditionalCountryCodes((prev) => [...prev, currentUser.countryCode || '+91']);
     }
   };
 
   const handleRemovePhoneField = (index) => {
     const updated = formData.additionalPhones.filter((_, i) => i !== index);
     setFormData((prev) => ({ ...prev, additionalPhones: updated }));
+    setAdditionalCountryCodes((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Photo Select
@@ -168,13 +224,18 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
       const data = new FormData();
 
       Object.keys(formData).forEach((key) => {
-        if (key === 'additionalPhones') {
-          const filtered = formData.additionalPhones.filter(Boolean);
+        if (key === 'phone') {
+          data.append('phone', `${primaryCountryCode} ${formData.phone.trim()}`);
+        } else if (key === 'additionalPhones') {
+          const filtered = formData.additionalPhones
+            .map((phone, index) => phone.trim() ? `${additionalCountryCodes[index] || '+91'} ${phone.trim()}` : '')
+            .filter(Boolean);
           data.append('additionalPhones', JSON.stringify(filtered));
         } else {
           data.append(key, formData[key]);
         }
       });
+      data.append('countryCode', primaryCountryCode);
 
       // Synchronize location aliases
       data.append('district', formData.location);
@@ -367,6 +428,146 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
                 placeholder={isTamil ? 'எ.கா: 5.6 அடி / 5 ft 6 in' : 'e.g. 5.6 அடி / 5\'6"'}
               />
             </div>
+
+            {/* Current Residing Address & Years Living There */}
+            <div>
+              <TamilInput
+                label={isTamil ? 'தற்போது வசிக்கும் முகவரி (Current Residing Address)' : 'Current Residing Address'}
+                name="currentAddress"
+                value={formData.currentAddress}
+                onChange={handleChange}
+                placeholder={isTamil ? 'எ.கா: எண் 12, அண்ணா நகர், சென்னை' : 'e.g. No. 12, Anna Nagar, Chennai'}
+              />
+            </div>
+            <div>
+              <TamilInput
+                label={isTamil ? 'அங்கு வசிக்கும் காலம் (Years Living There)' : 'Years Living There'}
+                name="livingYears"
+                value={formData.livingYears}
+                onChange={handleChange}
+                placeholder={isTamil ? 'எ.கா: 5 ஆண்டுகள் / 10 வருடங்கள்' : 'e.g. 5 Years / 10 Years'}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION: FAMILY DETAILS (PARENTS) */}
+        <div className="bg-white p-4 rounded-xl border border-[#c5b597]/70 shadow-sm space-y-4">
+          <h3 className="font-extrabold text-sm sm:text-base text-[#163828] border-b border-gray-100 pb-2 flex items-center gap-2">
+            <FaUser className="text-[#8a6d2f]" />
+            <span>{isTamil ? 'குடும்ப விவரங்கள் (தாய் & தந்தை)' : 'Family Details (Parents)'}</span>
+          </h3>
+
+          {/* Father Details */}
+          <div className="bg-[#faf8f4] p-4 rounded-xl border border-[#e5dcce] space-y-3">
+            <div className="flex flex-wrap items-center justify-between border-b border-[#e5dcce]/80 pb-1.5 gap-2">
+              <h5 className="font-extrabold text-xs sm:text-sm text-[#745821]">
+                {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
+              </h5>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200 hover:bg-amber-100/60 transition">
+                <input
+                  type="checkbox"
+                  name="fatherMarhum"
+                  checked={Boolean(formData.fatherMarhum)}
+                  onChange={handleChange}
+                  className="w-4 h-4 text-[#163828] rounded border-gray-300 focus:ring-[#163828]"
+                />
+                <span className={formData.fatherMarhum ? 'text-red-700 font-extrabold' : 'text-gray-700 font-bold'}>
+                  {isTamil ? 'மர்ஹும் / Marhum' : 'Marhum / Late'}
+                </span>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+              <div className="sm:col-span-5">
+                <TamilInput
+                  label={isTamil ? 'தந்தை பெயர் (Father Name)' : 'Father Name'}
+                  name="fatherName"
+                  value={formData.fatherName}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: அப்துல் ரஹ்மான்' : 'e.g. Abdul Rahman'}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-[#44351b] mb-1">
+                  {isTamil ? 'வயது (Age)' : 'Age'}
+                </label>
+                <input
+                  type="number"
+                  name="fatherAge"
+                  value={formData.fatherAge}
+                  onChange={handleChange}
+                  placeholder="55"
+                  min={30}
+                  max={120}
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
+                />
+              </div>
+              <div className="sm:col-span-5">
+                <TamilInput
+                  label={isTamil ? 'தந்தை தொழில் (Occupation)' : 'Father Occupation'}
+                  name="fatherOccupation"
+                  value={formData.fatherOccupation}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: வணிகம் / ஓய்வு / அரசு பணி' : 'e.g. Business / Retired / Govt'}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mother Details */}
+          <div className="bg-[#faf8f4] p-4 rounded-xl border border-[#e5dcce] space-y-3">
+            <div className="flex flex-wrap items-center justify-between border-b border-[#e5dcce]/80 pb-1.5 gap-2">
+              <h5 className="font-extrabold text-xs sm:text-sm text-[#745821]">
+                {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
+              </h5>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200 hover:bg-amber-100/60 transition">
+                <input
+                  type="checkbox"
+                  name="motherMarhum"
+                  checked={Boolean(formData.motherMarhum)}
+                  onChange={handleChange}
+                  className="w-4 h-4 text-[#163828] rounded border-gray-300 focus:ring-[#163828]"
+                />
+                <span className={formData.motherMarhum ? 'text-red-700 font-extrabold' : 'text-gray-700 font-bold'}>
+                  {isTamil ? 'மர்ஹும் / Marhum' : 'Marhum / Late'}
+                </span>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+              <div className="sm:col-span-5">
+                <TamilInput
+                  label={isTamil ? 'தாய் பெயர் (Mother Name)' : 'Mother Name'}
+                  name="motherName"
+                  value={formData.motherName}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: பாத்திமா பேகம்' : 'e.g. Fathima Begum'}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-[#44351b] mb-1">
+                  {isTamil ? 'வயது (Age)' : 'Age'}
+                </label>
+                <input
+                  type="number"
+                  name="motherAge"
+                  value={formData.motherAge}
+                  onChange={handleChange}
+                  placeholder="50"
+                  min={30}
+                  max={120}
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 shadow-inner"
+                />
+              </div>
+              <div className="sm:col-span-5">
+                <TamilInput
+                  label={isTamil ? 'தாய் தொழில் (Occupation)' : 'Mother Occupation'}
+                  name="motherOccupation"
+                  value={formData.motherOccupation}
+                  onChange={handleChange}
+                  placeholder={isTamil ? 'எ.கா: இல்லத்தரசி / ஆசிரியர்' : 'e.g. Homemaker / Teacher'}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -382,26 +583,46 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 {isTamil ? 'முதன்மை மொபைல் எண் *' : 'Primary Mobile Number *'}
               </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono font-bold"
-              />
+              <div className="flex items-center gap-2">
+                <CountryCodeSelect
+                  value={primaryCountryCode}
+                  onChange={(countryCode) => {
+                    setPrimaryCountryCode(countryCode);
+                    setFormData((prev) => ({
+                      ...prev,
+                      phone: prev.phone.slice(0, getMaxDigitsForDialCode(countryCode)),
+                    }));
+                  }}
+                  isTamil={isTamil}
+                  preferredOverseas={Boolean(currentUser.isOverseas)}
+                />
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData((prev) => ({
+                    ...prev,
+                    phone: e.target.value.replace(/\D/g, '').slice(0, getMaxDigitsForDialCode(primaryCountryCode)),
+                  }))}
+                  maxLength={getMaxDigitsForDialCode(primaryCountryCode)}
+                  required
+                  className="min-w-0 flex-1 px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono font-bold"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                {isTamil ? 'மின்னஞ்சல் (விருப்பத்தேர்வு)' : 'Email (Optional)'}
+                {isTamil ? 'மின்னஞ்சல் *' : 'Email *'}
               </label>
               <input
                 type="email"
+                id="edit-email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="candidate@example.com"
+                required
                 className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900"
               />
             </div>
@@ -413,11 +634,18 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
               </label>
               {formData.additionalPhones.map((p, idx) => (
                 <div key={idx} className="flex items-center gap-2">
+                  <CountryCodeSelect
+                    value={additionalCountryCodes[idx] || '+91'}
+                    onChange={(countryCode) => handleAdditionalCountryCodeChange(idx, countryCode)}
+                    isTamil={isTamil}
+                    preferredOverseas={Boolean(currentUser.isOverseas)}
+                  />
                   <input
                     type="tel"
                     value={p}
                     onChange={(e) => handleAdditionalPhoneChange(idx, e.target.value)}
                     placeholder={isTamil ? `கூடுதல் எண் ${idx + 1}` : `Additional Phone ${idx + 1}`}
+                    maxLength={getMaxDigitsForDialCode(additionalCountryCodes[idx] || '+91')}
                     className="flex-1 px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#c5b597] rounded-md focus:ring-2 focus:ring-[#8a6d2f] text-gray-900 font-mono"
                   />
                   <button
@@ -511,6 +739,16 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
                 value={formData.workplace}
                 onChange={handleChange}
                 placeholder={isTamil ? 'எ.கா: சென்னை / துபாய் / பெங்களூரு' : 'e.g. Chennai / Dubai / Bangalore'}
+              />
+            </div>
+
+            <div>
+              <TamilInput
+                label={isTamil ? 'இந்த பணியிடத்தில் பணிபுரியும் ஆண்டுகள்' : 'Years Working at This Workplace'}
+                name="workingYearsInTitleLocation"
+                value={formData.workingYearsInTitleLocation}
+                onChange={handleChange}
+                placeholder={isTamil ? 'எ.கா: 3 ஆண்டுகள்' : 'e.g. 3 years'}
               />
             </div>
 
@@ -647,7 +885,7 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <audio controls src={existingAudio.url} className="h-8 max-w-[200px]" />
+                  <AudioPlayer src={existingAudio.url} className="w-full max-w-sm" />
                   <button
                     type="button"
                     onClick={() => setDeleteAudio(true)}

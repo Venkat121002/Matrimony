@@ -5,6 +5,7 @@ import {
   getMe,
   uploadKYC,
   updateMe,
+  deleteMe,
   forgotPassword,
   verifyResetOtpHandler,
   resetPassword,
@@ -30,6 +31,9 @@ router.get('/me', verifyToken, getMe);
 
 // Update user profile
 router.put('/me', verifyToken, uploadMedia, updateMe);
+
+// Delete own account (subject to 1-month policy)
+router.delete('/me', verifyToken, deleteMe);
 
 // Re-upload KYC Document
 router.post('/upload-kyc', verifyToken, uploadKYCFile('kycDocument'), uploadKYC);

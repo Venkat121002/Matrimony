@@ -35,77 +35,34 @@ export default function Header({
     <header className="w-full bg-[#163828] border-b-2 border-[#caa85d] shadow-lg">
       {/* Top Banner with Islamic Green & Gold Motif */}
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3 sm:py-4 flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Left: Kaaba, Dome & Floral Emblem */}
-        <div className="flex items-center gap-3">
-          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 flex items-center justify-center p-1 rounded-full bg-gradient-to-b from-[#caa85d] to-[#74551c] shadow-md border border-[#e6d08f]">
-            {/* SVG Islamic Emblem: Mosque Dome, Minaret & Kaaba with floral accents */}
-            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow">
-              <defs>
-                <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#fffae0" />
-                  <stop offset="50%" stopColor="#d4af37" />
-                  <stop offset="100%" stopColor="#8a6d2f" />
-                </linearGradient>
-                <linearGradient id="domeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#2ec27e" />
-                  <stop offset="60%" stopColor="#126b41" />
-                  <stop offset="100%" stopColor="#0a3d24" />
-                </linearGradient>
-                <linearGradient id="roseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ff6b8b" />
-                  <stop offset="100%" stopColor="#c71545" />
-                </linearGradient>
-              </defs>
-
-              {/* Background badge circle */}
-              <circle cx="50" cy="50" r="46" fill="#0d291c" stroke="url(#goldGrad)" strokeWidth="2" />
-
-              {/* Kaaba Silhouette */}
-              <rect x="24" y="44" width="22" height="26" fill="#111111" rx="1" />
-              {/* Kiswah gold belt */}
-              <line x1="24" y1="51" x2="46" y2="51" stroke="url(#goldGrad)" strokeWidth="1.5" />
-              <line x1="24" y1="54" x2="46" y2="54" stroke="url(#goldGrad)" strokeWidth="0.8" />
-
-              {/* Green Dome of Prophet's Mosque */}
-              <path d="M 52 70 L 76 70 C 76 56 68 45 64 38 C 60 45 52 56 52 70 Z" fill="url(#domeGrad)" />
-              {/* Dome Crescent & Finial */}
-              <line x1="64" y1="38" x2="64" y2="30" stroke="url(#goldGrad)" strokeWidth="1.5" />
-              <path d="M 64 29 A 3.5 3.5 0 1 1 66 33 A 2.5 2.5 0 1 0 64 29 Z" fill="url(#goldGrad)" />
-
-              {/* Minaret on Left */}
-              <rect x="18" y="32" width="4" height="38" fill="#e8dfce" />
-              <polygon points="16,32 20,22 24,32" fill="url(#goldGrad)" />
-              {/* Minaret on Right */}
-              <rect x="80" y="30" width="4.5" height="40" fill="#e8dfce" />
-              <polygon points="78,30 82.2,19 86.5,30" fill="url(#goldGrad)" />
-
-              {/* Left Rose Garland */}
-              <circle cx="14" cy="58" r="4.5" fill="url(#roseGrad)" />
-              <circle cx="12" cy="50" r="4" fill="url(#roseGrad)" />
-              <circle cx="16" cy="65" r="3.5" fill="url(#roseGrad)" />
-              <path d="M 12 55 Q 8 60 14 68" stroke="#38a169" strokeWidth="1.5" fill="none" />
-
-              {/* Right Rose Garland */}
-              <circle cx="88" cy="58" r="4.5" fill="url(#roseGrad)" />
-              <circle cx="90" cy="50" r="4" fill="url(#roseGrad)" />
-              <circle cx="86" cy="65" r="3.5" fill="url(#roseGrad)" />
-              <path d="M 88 55 Q 92 60 86 68" stroke="#38a169" strokeWidth="1.5" fill="none" />
-
-              {/* Base floral curve */}
-              <path d="M 22 73 Q 50 82 78 73" stroke="url(#goldGrad)" strokeWidth="1.5" fill="none" />
-            </svg>
+        {/* Left: Website Logo Emblem */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div
+            className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[112px] lg:h-[112px] flex-shrink-0 flex items-center justify-center p-0.5 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] shadow-xl border-2 border-[#e6d08f] cursor-pointer overflow-hidden transition-transform duration-200 hover:scale-105"
+            onClick={() => { window.location.href = '/'; }}
+            title="Tamil Muslim Nikkah"
+          >
+            <img
+              src="/logo.png"
+              alt="Tamil Muslim Nikkah Logo"
+              className="w-full h-full object-cover rounded-full"
+            />
           </div>
 
           {/* Site Title and Tagline */}
           <div className="text-center md:text-left">
-            <h1 className="font-cinzel text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-wide uppercase"
+            <h1
+              className="font-cinzel text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-wide uppercase cursor-pointer"
               style={{
                 background: 'linear-gradient(180deg, #fff7d6 0%, #ecd08c 30%, #caa146 70%, #906f23 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 filter: 'drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8))',
                 letterSpacing: '0.04em'
-              }}>
+              }}
+              onClick={() => { window.location.href = '/'; }}
+              title="Go to Home"
+            >
               Tamil Muslim Nikkah
             </h1>
             <p className="text-[#ecd08c] font-tamil text-xs sm:text-sm md:text-base font-medium mt-0.5 tracking-normal drop-shadow">

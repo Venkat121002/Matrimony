@@ -42,6 +42,7 @@ import {
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import DefaultAvatar from './DefaultAvatar';
+import AudioPlayer from './AudioPlayer';
 
 export default function AdminPage({ portalType = 'superadmin' }) {
   const { language, setLanguage, t, isTamil, translateName, translateValue, translateWorkPreference } = useLanguage();
@@ -722,8 +723,8 @@ export default function AdminPage({ portalType = 'superadmin' }) {
               {renderLanguageSelector('text-[11px] py-0.5 px-2')}
             </div>
 
-            <div className="w-14 h-14 rounded-full bg-gradient-to-b from-[#caa85d] to-[#8a6d2f] p-1 flex items-center justify-center text-[#163828] shadow-md mx-auto mb-2.5">
-              <FaShieldAlt className="text-2xl" />
+            <div className="w-16 h-16 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] p-0.5 flex items-center justify-center shadow-lg mx-auto mb-2.5 overflow-hidden border border-[#edd48e]">
+              <img src="/logo.png" alt="Tamil Muslim Nikkah Logo" className="w-full h-full object-cover rounded-full" />
             </div>
             <h2 className="font-cinzel text-lg sm:text-xl font-black text-[#edd48e] tracking-wide pr-14 pl-14 sm:px-0">
               {portalTitle}
@@ -836,8 +837,8 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       <header className="bg-[#163828] border-b-2 border-[#caa85d] text-white shadow-lg sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#caa85d] to-[#8a6d2f] p-1 flex items-center justify-center text-[#163828] shadow-md flex-shrink-0">
-              <FaShieldAlt className="text-xl" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] p-0.5 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden border border-[#edd48e]">
+              <img src="/logo.png" alt="Tamil Muslim Nikkah Logo" className="w-full h-full object-cover rounded-full" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -1472,40 +1473,25 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   <FaUser className="text-[#caa85d]" />
                   <span>1. {isTamil ? 'வரன் தனிநபர் விவரங்கள்' : 'Candidate Details'}</span>
                 </h4>
-                <AdminNeatRow label={isTamil ? 'பெயர்' : 'Full Name'} value={translateName(selectedUser.fullName)} />
+                <AdminNeatRow label={isTamil ? 'பெயர் (தமிழில்)' : 'Candidate Name (Tamil)'} value={selectedUser.fullName || selectedUser.name || '—'} />
+                {Boolean(selectedUser.fullNameEn || selectedUser.nameEn) && (
+                  <AdminNeatRow label={isTamil ? 'பெயர் (ஆங்கிலத்தில்)' : 'Candidate Name (English)'} value={selectedUser.fullNameEn || selectedUser.nameEn} />
+                )}
                 <AdminNeatRow
                   label={isTamil ? 'வரன் வகை' : 'Profile For'}
                   value={selectedUser.gender === 'groom' ? (isTamil ? 'மணமகன்' : 'Groom') : (isTamil ? 'மணமகள்' : 'Bride')}
                 />
                 <AdminNeatRow label={isTamil ? 'வயது' : 'Age'} value={`${selectedUser.age} ${isTamil ? 'வயது' : 'Years'}`} />
-                {selectedUser.dob && (
-                  <AdminNeatRow label={isTamil ? 'பிறந்த தேதி' : 'Date of Birth'} value={selectedUser.dob} />
-                )}
                 <AdminNeatRow label={isTamil ? 'திருமண நிலை' : 'Marital Status'} value={translateValue(selectedUser.maritalStatus || selectedUser.maritalStatusEn) || '—'} />
                 <AdminNeatRow label={isTamil ? 'மொழி & இனம்' : 'Language'} value={translateValue(selectedUser.language) || (isTamil ? 'தமிழ்-முஸ்லிம்' : 'Tamil-Muslim')} />
-                {(selectedUser.caste || selectedUser.jamath || selectedUser.maslak) && (
-                  <AdminNeatRow
-                    label={isTamil ? 'ஜமாத் / பிரிவு' : 'Jamath / Sect'}
-                    value={translateValue(selectedUser.jamath || selectedUser.maslak || selectedUser.caste) || '—'}
-                  />
-                )}
                 <AdminNeatRow label={isTamil ? 'சொந்த இருப்பிடம்' : 'Native Location'} value={translateValue(selectedUser.location || selectedUser.nativePlace || selectedUser.district) || '—'} />
-                {selectedUser.currentAddress && (
-                  <AdminNeatRow label={isTamil ? 'தற்போதைய முகவரி' : 'Current Address'} value={selectedUser.currentAddress} />
-                )}
-                {selectedUser.livingYears && (
-                  <AdminNeatRow label={isTamil ? 'இருப்பிட வாழ்வு காலம்' : 'Years Living in Location'} value={translateValue(selectedUser.livingYears)} />
-                )}
                 <AdminNeatRow label={isTamil ? 'பணிபுரியும் இடம்' : 'Workplace Location'} value={translateValue(selectedUser.workplace || selectedUser.workplaceEn) || '—'} />
                 <AdminNeatRow label={isTamil ? 'உயரம்' : 'Height'} value={translateValue(selectedUser.height || selectedUser.heightEn) || '—'} />
-                {selectedUser.weight && (
-                  <AdminNeatRow label={isTamil ? 'எடை' : 'Weight'} value={translateValue(selectedUser.weight)} />
+                {Boolean(selectedUser.currentAddress) && (
+                  <AdminNeatRow label={isTamil ? 'தற்போது வசிக்கும் முகவரி' : 'Current Residing Address'} value={selectedUser.currentAddress} />
                 )}
-                {selectedUser.complexion && (
-                  <AdminNeatRow label={isTamil ? 'நிறம்' : 'Complexion'} value={translateValue(selectedUser.complexion)} />
-                )}
-                {selectedUser.physicalStatus && (
-                  <AdminNeatRow label={isTamil ? 'உடல் நிலை' : 'Physical Status'} value={translateValue(selectedUser.physicalStatus)} />
+                {Boolean(selectedUser.livingYears) && (
+                  <AdminNeatRow label={isTamil ? 'அங்கு வசிக்கும் காலம்' : 'Years Living There'} value={selectedUser.livingYears} />
                 )}
               </div>
 
@@ -1525,9 +1511,6 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   value={(selectedUser.additionalPhones || []).filter(Boolean).join(', ') || (isTamil ? 'இல்லை' : 'None')}
                   isMono
                 />
-                {selectedUser.whatsappNumber && (
-                  <AdminNeatRow label={isTamil ? 'வாட்ஸ்அப் எண்' : 'WhatsApp Number'} value={selectedUser.whatsappNumber} isMono />
-                )}
                 <AdminNeatRow
                   label={isTamil ? 'மின்னஞ்சல்' : 'Email'}
                   value={
@@ -1544,9 +1527,6 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   label={isTamil ? 'வரனுடன் உறவுமுறை' : 'Relationship'}
                   value={translateValue(selectedUser.publisher?.relationship || (isTamil ? 'சுய பதிவு' : 'Self'))}
                 />
-                {selectedUser.publisher?.phone && (
-                  <AdminNeatRow label={isTamil ? 'பதிவு செய்தவர் எண்' : 'Publisher Phone'} value={selectedUser.publisher.phone} isMono />
-                )}
                 <AdminNeatRow
                   label={isTamil ? 'பதிவு செய்த நாள்' : 'Registration Date'}
                   value={
@@ -1558,12 +1538,6 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                       : '—'
                   }
                 />
-                {selectedUser.kycDocument && (selectedUser.kycDocument.filename || selectedUser.kycDocument.docType) && (
-                  <AdminNeatRow
-                    label={isTamil ? 'அடையாள ஆவணம் (KYC Proof)' : 'KYC Document'}
-                    value={`${selectedUser.kycDocument.docType || 'ID Proof'}${selectedUser.kycDocument.originalName ? ` - ${selectedUser.kycDocument.originalName}` : ''}`}
-                  />
-                )}
               </div>
 
               {/* Section 3: Education, Career, Role Experience & Assets */}
@@ -1573,12 +1547,9 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   <span>3. {isTamil ? 'கல்வி, தொழில், அனுபவம் & சொத்துக்கள்' : 'Education, Career, Experience & Assets'}</span>
                 </h4>
                 <AdminNeatRow label={isTamil ? 'கல்வித் தகுதி' : 'Education'} value={translateValue(selectedUser.education || selectedUser.educationEn) || '—'} />
-                {selectedUser.educationDetail && (
-                  <AdminNeatRow label={isTamil ? 'விரிவான படிப்பு' : 'Education Details'} value={selectedUser.educationDetail} />
-                )}
                 <AdminNeatRow label={isTamil ? 'தொழில் / பணி' : 'Occupation'} value={translateValue(selectedUser.occupation || selectedUser.profession) || '—'} />
                 <AdminNeatRow label={isTamil ? 'பணிபுரியும் இடம்' : 'Workplace'} value={translateValue(selectedUser.workplace || selectedUser.workplaceEn) || '—'} />
-                {selectedUser.workingYearsInTitleLocation && (
+                {Boolean(selectedUser.workingYearsInTitleLocation) && (
                   <AdminNeatRow
                     label={isTamil ? 'இப்பதவியில் பணி அனுபவம்' : 'Years in Title & Location'}
                     value={`${selectedUser.workingYearsInTitleLocation} ${isTamil ? 'ஆண்டுகள்' : 'Years'}`}
@@ -1599,8 +1570,8 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                     label={isTamil ? 'மணமகள் பணிபுரிவது குறித்த விருப்பம்' : 'Preference Regarding Bride Working'}
                     value={
                       translateWorkPreference
-                        ? translateWorkPreference(selectedUser.workPreferences?.groomWorkPreference, true)
-                        : (selectedUser.workPreferences?.groomWorkPreference || '—')
+                        ? translateWorkPreference(selectedUser.workPreferences?.groomWorkPreference || selectedUser.workPreference, true)
+                        : (selectedUser.workPreferences?.groomWorkPreference || selectedUser.workPreference || '—')
                     }
                   />
                 ) : (
@@ -1608,21 +1579,9 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                     label={isTamil ? 'மணமகள் பணி நிலை / விருப்பம்' : 'Bride’s Work Preference'}
                     value={
                       translateWorkPreference
-                        ? translateWorkPreference(selectedUser.workPreferences?.brideWorkStatus, false)
-                        : (selectedUser.workPreferences?.brideWorkStatus || '—')
+                        ? translateWorkPreference(selectedUser.workPreferences?.brideWorkStatus || selectedUser.workPreference, false)
+                        : (selectedUser.workPreferences?.brideWorkStatus || selectedUser.workPreference || '—')
                     }
-                  />
-                )}
-                {(selectedUser.workPreferences?.notes || selectedUser.workPreferences?.preferenceText) && (
-                  <AdminNeatRow
-                    label={isTamil ? 'கூடுதல் குறிப்பு' : 'Additional Work Notes'}
-                    value={selectedUser.workPreferences.notes || selectedUser.workPreferences.preferenceText}
-                  />
-                )}
-                {selectedUser.requirement && (
-                  <AdminNeatRow
-                    label={isTamil ? 'எதிர்பார்ப்பு' : 'Partner Requirements'}
-                    value={selectedUser.requirement}
                   />
                 )}
               </div>
@@ -1639,12 +1598,17 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   {/* Father Box */}
                   <div className="p-2.5 bg-white rounded-lg border border-[#e2d5bd] space-y-1">
                     <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
-                      👨 {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
+                      {isTamil ? 'தந்தை விவரம் (Father Details)' : 'Father Details'}
                     </span>
                     <div className="text-xs space-y-1 pt-1">
                       <p>
                         <span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span>{' '}
                         <span className="font-semibold text-gray-900">{selectedUser.familyDetails?.fatherName || selectedUser.fatherName || '—'}</span>
+                        {(selectedUser.familyDetails?.fatherMarhum || selectedUser.fatherMarhum) && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300">
+                            {isTamil ? 'மர்ஹும்' : 'Marhum / Late'}
+                          </span>
+                        )}
                       </p>
                       <p>
                         <span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span>{' '}
@@ -1660,12 +1624,17 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   {/* Mother Box */}
                   <div className="p-2.5 bg-white rounded-lg border border-[#e2d5bd] space-y-1">
                     <span className="font-extrabold text-xs text-[#163828] block border-b border-[#ebdcc4] pb-1">
-                      👩 {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
+                      {isTamil ? 'தாய் விவரம் (Mother Details)' : 'Mother Details'}
                     </span>
                     <div className="text-xs space-y-1 pt-1">
                       <p>
                         <span className="font-bold text-gray-700">{isTamil ? 'பெயர்' : 'Name'}:</span>{' '}
                         <span className="font-semibold text-gray-900">{selectedUser.familyDetails?.motherName || selectedUser.motherName || '—'}</span>
+                        {(selectedUser.familyDetails?.motherMarhum || selectedUser.motherMarhum) && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300">
+                            {isTamil ? 'மர்ஹும்' : 'Marhum / Late'}
+                          </span>
+                        )}
                       </p>
                       <p>
                         <span className="font-bold text-gray-700">{isTamil ? 'வயது' : 'Age'}:</span>{' '}
@@ -1744,7 +1713,10 @@ export default function AdminPage({ portalType = 'superadmin' }) {
               </div>
 
               {/* Section 6: Overseas Registration Details (If Overseas Candidate) */}
-              {(selectedUser.isOverseas || (selectedUser.citizenship && selectedUser.citizenship !== 'Indian Citizen' && selectedUser.citizenship !== 'India') || selectedUser.countryOfResidence) && (
+              {(selectedUser.isOverseas === true || (
+                selectedUser.citizenship
+                && !['india', 'indian', 'indian citizen'].includes(String(selectedUser.citizenship).trim().toLowerCase())
+              )) && (
                 <div className="bg-[#fbf9f2] p-3.5 rounded-xl border border-[#dfd2ba] space-y-1">
                   <h4 className="font-extrabold text-sm text-[#163828] flex items-center gap-1.5 border-b border-[#dfd2ba] pb-1.5 mb-2">
                     <FaGlobe className="text-[#caa85d]" />
@@ -1822,7 +1794,7 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                       <p className="text-[11px] text-gray-600">
                         {isTamil ? 'குடும்பம் மற்றும் எதிர்பார்ப்புகள் குறித்த குரல் பதிவு:' : "Candidate's audio note regarding expectations & family background:"}
                       </p>
-                      <audio controls src={selectedUser.audioClip.url} className="w-full h-9 mt-1" />
+                      <AudioPlayer src={selectedUser.audioClip.url} className="mt-1" />
                     </div>
                   ) : (
                     <div className="p-2 bg-[#f5eedf] rounded-lg border border-[#ded1bb] text-center text-xs text-gray-600">
@@ -1847,8 +1819,8 @@ export default function AdminPage({ portalType = 'superadmin' }) {
         </div>
       )}
 
-      {/* ─── Modal: Confirm Delete / Remove User (Admin Only) ─── */}
-      {!isSuperAdmin && userToDelete && (
+      {/* ─── Modal: Confirm Delete / Remove User ─── */}
+      {userToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fadeIn"
           onClick={() => setUserToDelete(null)}

@@ -78,6 +78,17 @@
   box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
+.registration-form.show-validation-errors :is(input, textarea, select):required:invalid,
+.registration-form.show-validation-errors .registration-field-invalid {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px #dc2626 !important;
+}
+
+.registration-form.show-validation-errors input[type='checkbox']:required:invalid {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
 .btn-orange:active {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
   transform: translateY(1px);

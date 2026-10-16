@@ -12,9 +12,9 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
         
         {/* Column 1: About the Service */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#caa85d] to-[#8a6d2f] p-1 flex items-center justify-center text-[#163828]">
-              <FaMosque className="text-base" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] p-0.5 flex items-center justify-center shadow-md overflow-hidden border border-[#e6d08f] flex-shrink-0">
+              <img src="/logo.png" alt="Tamil Muslim Nikkah Logo" className="w-full h-full object-cover rounded-full" />
             </div>
             <h4 className="font-cinzel text-base sm:text-lg font-bold text-[#f5e2b0] tracking-wide">
               {t('siteTitle')}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaCheckCircle, FaCopy, FaCheck, FaLock, FaSignInAlt, FaTimes } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function RegistrationSuccessModal({
   isOpen,
@@ -10,6 +11,7 @@ export default function RegistrationSuccessModal({
 }) {
   const { isTamil, translateName } = useLanguage();
   const [copied, setCopied] = useState(false);
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   if (!isOpen || !user) return null;
 
@@ -31,11 +33,11 @@ export default function RegistrationSuccessModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-lg bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header Bar */}
         <div className="bg-gradient-to-r from-[#163828] via-[#24583f] to-[#163828] py-4 px-6 flex items-center justify-between border-b-2 border-[#caa85d] text-white">

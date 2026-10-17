@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaCrown, FaCheckCircle, FaShieldAlt, FaLock, FaBolt, FaCalendarAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }) {
   const { t, isTamil } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('annual'); // 'monthly' | 'annual'
@@ -197,11 +199,11 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-lg bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative max-h-[92vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#24583f] to-[#163828] py-4 px-5 flex items-center justify-between border-b-2 border-[#caa85d] text-white flex-shrink-0">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaCrown, FaCheckCircle, FaBolt, FaStar, FaShieldAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 import DefaultAvatar from './DefaultAvatar';
 
 export default function FeatureProfileModal({
@@ -12,6 +13,7 @@ export default function FeatureProfileModal({
   marqueeSettings,
 }) {
   const { t, isTamil, translateName } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [price, setPrice] = useState(marqueeSettings?.price || 299);
@@ -189,11 +191,11 @@ export default function FeatureProfileModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-md bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative max-h-[92vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] text-white p-4 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0">

@@ -23,6 +23,7 @@ import {
   FaClock,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 import TamilInputBase from './TamilInput';
 import LiveAudioRecorder from './LiveAudioRecorder';
 import CountryCodeSelect from './CountryCodeSelect';
@@ -53,7 +54,7 @@ export default function RegisterModal({
   const [popupAlert, setPopupAlert] = useState(null); // Pop up alert for errors / missing inputs
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const formRef = useRef(null);
-  const mouseDownTargetRef = useRef(null);
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   // Overseas / Foreigner toggle state
   const [isOverseas, setIsOverseas] = useState(Boolean(initialIsOverseas));
@@ -89,16 +90,6 @@ export default function RegisterModal({
       }));
     }
   }, [isOpen, initialIsOverseas]);
-
-  const handleBackdropMouseDown = (e) => {
-    mouseDownTargetRef.current = e.target;
-  };
-
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownTargetRef.current === e.currentTarget) {
-      onClose();
-    }
-  };
 
   // Helper to trigger alert pop-up above form
   const showPopupAlert = (title, message, type = 'error', targetField = '') => {
@@ -730,12 +721,11 @@ export default function RegisterModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fadeIn"
-      onMouseDown={handleBackdropMouseDown}
-      onClick={handleBackdropClick}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-4xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-3 max-h-[95vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#24583f] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] text-white flex-shrink-0">

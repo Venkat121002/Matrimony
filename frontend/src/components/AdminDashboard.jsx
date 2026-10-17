@@ -18,9 +18,13 @@ import {
   FaSync,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function AdminDashboard({ isOpen, onClose, onRefreshProfiles }) {
   const { t, isTamil } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
+  const { backdropProps: kycBackdropProps, modalContentProps: kycModalProps } = useModalBackdrop(() => setSelectedKycDoc(null));
+  const { backdropProps: rejectBackdropProps, modalContentProps: rejectModalProps } = useModalBackdrop(() => setRejectingUserId(null));
 
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'verifications' | 'users' | 'support'
   const [stats, setStats] = useState(null);
@@ -241,11 +245,11 @@ export default function AdminDashboard({ isOpen, onClose, onRefreshProfiles }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md overflow-y-auto animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-5xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-3 max-h-[94vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Admin Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] text-white flex-shrink-0">
@@ -790,11 +794,11 @@ export default function AdminDashboard({ isOpen, onClose, onRefreshProfiles }) {
         {selectedKycDoc && (
           <div
             className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setSelectedKycDoc(null)}
+            {...kycBackdropProps}
           >
             <div
               className="bg-white rounded-xl overflow-hidden max-w-2xl w-full max-h-[85vh] flex flex-col border-2 border-[#caa85d]"
-              onClick={(e) => e.stopPropagation()}
+              {...kycModalProps}
             >
               <div className="bg-[#163828] text-white p-3 flex justify-between items-center border-b border-[#caa85d]">
                 <span className="font-bold text-sm">Secure Identity Document Preview</span>
@@ -820,11 +824,11 @@ export default function AdminDashboard({ isOpen, onClose, onRefreshProfiles }) {
         {rejectingUserId && (
           <div
             className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setRejectingUserId(null)}
+            {...rejectBackdropProps}
           >
             <div
               className="bg-white rounded-xl p-5 max-w-md w-full border-2 border-red-400 space-y-3"
-              onClick={(e) => e.stopPropagation()}
+              {...rejectModalProps}
             >
               <h4 className="font-extrabold text-sm text-red-800">
                 Reject Verification & Notify User

@@ -12,9 +12,11 @@ import {
   FaSpinner,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
   const { isTamil } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   // Steps: 1: 'enter_identifier' | 2: 'enter_otp' | 3: 'new_password' | 4: 'success'
   const [step, setStep] = useState(1);
@@ -227,11 +229,11 @@ export default function ForgotPasswordModal({ isOpen, onClose, onOpenLogin }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-md bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] text-white">

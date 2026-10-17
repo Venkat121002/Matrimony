@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaTimes, FaLock, FaUser, FaPlayCircle } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function LoginModal({
   isOpen,
@@ -16,17 +17,7 @@ export default function LoginModal({
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const mouseDownTargetRef = useRef(null);
-
-  const handleBackdropMouseDown = (e) => {
-    mouseDownTargetRef.current = e.target;
-  };
-
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownTargetRef.current === e.currentTarget) {
-      onClose();
-    }
-  };
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -98,12 +89,11 @@ export default function LoginModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onMouseDown={handleBackdropMouseDown}
-      onClick={handleBackdropClick}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-md bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d]">

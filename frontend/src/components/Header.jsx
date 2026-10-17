@@ -33,8 +33,26 @@ export default function Header({
 
   return (
     <header className="w-full bg-[#163828] border-b-2 border-[#caa85d] shadow-lg">
+      {/* Bismillah in Arabic seamlessly inside the green background title bar */}
+      <div className="w-full pt-2.5 pb-1 px-3 text-center">
+        <p
+          className="text-base sm:text-lg md:text-xl font-bold tracking-wide select-none"
+          style={{
+            fontFamily: "'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', serif",
+            background: 'linear-gradient(180deg, #fff7d6 0%, #edd48e 40%, #caa85d 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8))',
+          }}
+          dir="rtl"
+          title="بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ - Bismillah ir-Rahman ir-Rahim"
+        >
+          بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+        </p>
+      </div>
+
       {/* Top Banner with Islamic Green & Gold Motif */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3 sm:py-4 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 pb-3 sm:pb-4 pt-1 flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Left: Website Logo Emblem */}
         <div className="flex items-center gap-3 sm:gap-4">
           <div
@@ -138,7 +156,7 @@ export default function Header({
                   title={isTamil ? 'வெளிநாட்டு வரன்களுக்கான தனி பதிவு' : 'Register for Foreign / Overseas candidates'}
                 >
                   <span>🌍</span>
-                  <span>{isTamil ? 'வெளிநாட்டு பதிவு' : 'Overseas Register'}</span>
+                  <span>{isTamil ? 'வெளிநாட்டு குடியுரிமை வரன் பதிவு' : 'Overseas Register'}</span>
                 </button>
               )}
               <button

@@ -15,6 +15,7 @@ import {
   FaStar,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 import DefaultAvatar from './DefaultAvatar';
 
 export default function ProfileDetailsModal({
@@ -30,17 +31,8 @@ export default function ProfileDetailsModal({
 }) {
   const { t, isTamil, translateValue, translateName, translateWorkPreference } = useLanguage();
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState(null);
-  const mouseDownTargetRef = useRef(null);
-
-  const handleBackdropMouseDown = (e) => {
-    mouseDownTargetRef.current = e.target;
-  };
-
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownTargetRef.current === e.currentTarget) {
-      onClose();
-    }
-  };
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
+  const { backdropProps: previewBackdropProps, modalContentProps: previewContentProps } = useModalBackdrop(() => setPreviewPhotoUrl(null));
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -81,12 +73,11 @@ export default function ProfileDetailsModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-sm overflow-y-auto animate-fadeIn"
-      onMouseDown={handleBackdropMouseDown}
-      onClick={handleBackdropClick}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-2xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
@@ -648,11 +639,11 @@ export default function ProfileDetailsModal({
       {previewPhotoUrl && (
         <div
           className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 animate-fadeIn"
-          onClick={() => setPreviewPhotoUrl(null)}
+          {...previewBackdropProps}
         >
           <div
             className="relative max-w-2xl w-full max-h-[92vh] flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
+            {...previewContentProps}
           >
             <div className="w-full flex items-center justify-between pb-2 text-white">
               <span className="text-xs font-bold text-amber-200">

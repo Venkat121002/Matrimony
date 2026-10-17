@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { FaTimes, FaPlay, FaPause, FaVolumeUp, FaVideo } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function VideoModal({ isOpen, onClose }) {
   const { t } = useLanguage();
   const [isPlaying, setIsPlaying] = useState(true);
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -27,11 +29,11 @@ export default function VideoModal({ isOpen, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-xl bg-[#163828] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-[#0f261b] py-2.5 px-4 flex items-center justify-between border-b border-[#caa85d]/60">

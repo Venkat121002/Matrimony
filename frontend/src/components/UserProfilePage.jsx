@@ -954,7 +954,11 @@ export default function UserProfilePage() {
       {/* Account Deletion Confirmation Modal (Policy: >= 1 Month) */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-500 max-w-md w-full p-6 space-y-4">
+          <div
+            className="bg-white rounded-2xl shadow-2xl border-2 border-red-500 max-w-md w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 text-red-600">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl flex-shrink-0">
                 <FaExclamationTriangle />

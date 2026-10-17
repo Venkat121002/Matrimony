@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   FaShieldAlt,
   FaSearch,
@@ -57,6 +57,36 @@ export default function AdminPage({ portalType = 'superadmin' }) {
   const isSuperAdmin = portalType === 'superadmin';
   const storageKey = isSuperAdmin ? 'superadmin_auth_key' : 'admin_auth_key';
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState(null);
+  const backdropMouseDownTarget = useRef(null);
+  const makeSafeBackdropProps = (onClose) => ({
+    onMouseDown: (e) => {
+      backdropMouseDownTarget.current = e.target;
+    },
+    onClick: (e) => {
+      const selection = window.getSelection();
+      if (selection && selection.toString().trim().length > 0) {
+        backdropMouseDownTarget.current = null;
+        return;
+      }
+      if (e.target === e.currentTarget && backdropMouseDownTarget.current === e.currentTarget) {
+        backdropMouseDownTarget.current = null;
+        if (onClose) onClose();
+      }
+      backdropMouseDownTarget.current = null;
+    },
+  });
+  const safeModalContentProps = {
+    onMouseDown: (e) => {
+      e.stopPropagation();
+      backdropMouseDownTarget.current = null;
+    },
+    onMouseUp: (e) => {
+      e.stopPropagation();
+    },
+    onClick: (e) => {
+      e.stopPropagation();
+    },
+  };
   const portalViewLabel = isSuperAdmin
     ? t('superAdminViewOnlyBadge')
     : t('adminManageBadge');
@@ -835,7 +865,24 @@ export default function AdminPage({ portalType = 'superadmin' }) {
     <div className="min-h-screen flex flex-col bg-[#f5efe1] text-gray-800 font-sans selection:bg-[#caa85d] selection:text-[#163828]">
       {/* ─── Top Islamic Green & Gold Header (Matching User Side) ─── */}
       <header className="bg-[#163828] border-b-2 border-[#caa85d] text-white shadow-lg sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Top Bismillah Strip in Arabic directly inside green header */}
+        <div className="w-full pt-2.5 pb-1 px-3 text-center">
+          <p
+            className="text-base sm:text-lg md:text-xl font-bold tracking-wide select-none"
+            style={{
+              fontFamily: "'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', serif",
+              background: 'linear-gradient(180deg, #fff7d6 0%, #edd48e 40%, #caa85d 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8))',
+            }}
+            dir="rtl"
+            title="بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ - Bismillah ir-Rahman ir-Rahim"
+          >
+            بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+          </p>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-3 sm:pb-4 pt-1 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] p-0.5 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden border border-[#edd48e]">
               <img src="/logo.png" alt="Tamil Muslim Nikkah Logo" className="w-full h-full object-cover rounded-full" />
@@ -1378,11 +1425,11 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       {selectedUser && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm overflow-y-auto animate-fadeIn"
-          onClick={() => setSelectedUser(null)}
+          {...makeSafeBackdropProps(() => setSelectedUser(null))}
         >
           <div
             className="w-full max-w-2xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            {...safeModalContentProps}
           >
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
@@ -1823,11 +1870,11 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       {userToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fadeIn"
-          onClick={() => setUserToDelete(null)}
+          {...makeSafeBackdropProps(() => setUserToDelete(null))}
         >
           <div
             className="w-full max-w-md bg-[#faf7ef] border-2 border-red-400 rounded-2xl shadow-2xl p-6 space-y-4 text-center"
-            onClick={(e) => e.stopPropagation()}
+            {...safeModalContentProps}
           >
             <div className="w-12 h-12 rounded-full bg-red-100 border border-red-300 flex items-center justify-center text-red-600 mx-auto text-xl">
               <FaTrashAlt />
@@ -1869,11 +1916,11 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       {!isSuperAdmin && isSettingsOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm overflow-y-auto animate-fadeIn"
-          onClick={() => setIsSettingsOpen(false)}
+          {...makeSafeBackdropProps(() => setIsSettingsOpen(false))}
         >
           <div
             className="w-full max-w-2xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            {...safeModalContentProps}
           >
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
@@ -2395,11 +2442,11 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       {!isSuperAdmin && isTicketsOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm overflow-y-auto animate-fadeIn"
-          onClick={() => setIsTicketsOpen(false)}
+          {...makeSafeBackdropProps(() => setIsTicketsOpen(false))}
         >
           <div
             className="w-full max-w-4xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            {...safeModalContentProps}
           >
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
@@ -2703,11 +2750,11 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       {previewPhotoUrl && (
         <div
           className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 animate-fadeIn"
-          onClick={() => setPreviewPhotoUrl(null)}
+          {...makeSafeBackdropProps(() => setPreviewPhotoUrl(null))}
         >
           <div
             className="relative max-w-2xl w-full max-h-[92vh] flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
+            {...safeModalContentProps}
           >
             <div className="w-full flex items-center justify-between pb-2 text-white">
               <span className="text-xs font-bold text-amber-200">

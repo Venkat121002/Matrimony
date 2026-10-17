@@ -2,9 +2,11 @@ import React, { useRef, useState } from 'react';
 import { FaTimes, FaHeadset, FaPaperPlane, FaPhoneAlt, FaEnvelope } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import useTamilTransliteration from '../utils/useTamilTransliteration';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export default function SupportModal({ isOpen, onClose, user }) {
   const { t, isTamil } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   const [formData, setFormData] = useState({
     name: user?.fullName || '',
@@ -92,11 +94,11 @@ export default function SupportModal({ isOpen, onClose, user }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-md bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-4 flex items-center justify-between border-b-2 border-[#caa85d] text-white">

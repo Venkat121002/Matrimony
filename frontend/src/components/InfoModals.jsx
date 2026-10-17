@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { FaTimes, FaInfoCircle, FaPhoneAlt, FaMapMarkerAlt, FaClock, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
+import { useModalBackdrop } from '../hooks/useModalBackdrop';
 
 export function AboutModal({ isOpen, onClose }) {
   const { t } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -26,11 +28,11 @@ export function AboutModal({ isOpen, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-lg bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d]">
           <div className="flex items-center gap-2">
@@ -72,6 +74,7 @@ export function AboutModal({ isOpen, onClose }) {
 
 export function ContactModal({ isOpen, onClose }) {
   const { t, isTamil } = useLanguage();
+  const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -94,11 +97,11 @@ export function ContactModal({ isOpen, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         className="w-full max-w-md bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
+        {...modalContentProps}
       >
         <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3 px-4 flex items-center justify-between border-b-2 border-[#caa85d]">
           <div className="flex items-center gap-2">

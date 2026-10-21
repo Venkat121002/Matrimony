@@ -94,7 +94,7 @@ export const sendWhatsAppOtp = async (rawPhone, otp, name = 'User') => {
  * Direct wa.me WhatsApp link to receive OTP in WhatsApp
  */
 export const createWhatsAppDirectLink = (otp, identifier, targetPhone = '') => {
-  const recipient = formatPhoneForWhatsApp(targetPhone || '919171896625');
+  const recipient = formatPhoneForWhatsApp(targetPhone || '919344511158');
   const text = encodeURIComponent(
     `*தமிழ் முஸ்லிம் நிக்காஹ் (Tamil Muslim Nikkah)*\n\nஉங்கள் கடவுச்சொல் மீட்பு OTP குறியீடு:\n*${otp}*\n\n(Account: ${identifier || 'User'})\nஇந்த OTP 10 நிமிடங்கள் மட்டுமே செல்லுபடியாகும். யாருடனும் பகிர வேண்டாம்.`
   );

@@ -84,13 +84,13 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
               <div>
                 <div className="text-[11px] text-[#eed48e] font-bold">WhatsApp:</div>
                 <a
-                  href="https://wa.me/919171896625"
+                  href="https://wa.me/919344511158"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-bold text-white hover:text-emerald-300 transition flex items-center gap-1"
-                  title="WhatsApp: 9171896625"
+                  title="WhatsApp: 9344511158"
                 >
-                  9171896625
+                  9344511158
                 </a>
               </div>
             </div>

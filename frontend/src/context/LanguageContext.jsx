@@ -218,14 +218,14 @@ export const translations = {
     modalAboutText1: 'இஸ்லாமிய ஷரீஅத் முறைப்படி மணமகன் மற்றும் மணமகள் விவரங்களை நம்பகத்தன்மையுடன் ஒருங்கிணைத்து, ஏழை, எளிய, நடுத்தர குடும்பங்கள் மற்றும் அயல்நாட்டு வாழ் தமிழ் முஸ்லிம் சகோதர சகோதரிகளுக்கும் மிகச் சிறந்த திருமண வரன்களை அமைத்துக் கொடுப்பதே எங்களின் தலையாய நோக்கமாகும்.',
     modalOurPolicy: 'எங்களின் கொள்கை:',
     modalPolicy1: 'வரதட்சணை வாங்குவதையும் கொடுப்பதையும் முற்றிலும் தவிர்ப்போம்.',
-    modalPolicy2: 'நேர்மையான மற்றும் சரிபார்க்கப்பட்ட வரன் விவரங்கள்.',
+    modalPolicy2: 'இங்கு பதிவு செய்யப்பட்டுள்ள விவரங்கள் பயனரால் நேரடியாக பதிவு செய்யப்பட்ட உண்மையான விவரங்களாகும்.',
     modalPolicy3: 'நம்பகமான வாடிக்கையாளர் சேவை.',
     modalClose: 'சரி (Close)',
 
     modalContactTitle: 'தொடர்புக்கு (Contact Us)',
     modalPhoneLabel: 'தொலைபேசி எண்',
     modalWhatsAppLabel: 'வாட்ஸ்அப் (WhatsApp)',
-    modalWhatsAppDirect: '+91 91718 96625 (நேரடி அரட்டை)',
+    modalWhatsAppDirect: '+91 93445 11158 (நேரடி அரட்டை)',
     modalWorkHoursLabel: 'வேலை நேரம்',
     modalWorkHoursVal: 'காலை 9.00 am முதல் இரவு 9.00 pm வரை',
 
@@ -238,7 +238,7 @@ export const translations = {
 
     // Footer
     footerAbout: 'இஸ்லாமிய ஷரீஅத் நெறிமுறைகளுக்கு உட்பட்டு, நம்பகமான மற்றும் வரதட்சணையற்ற நிக்காஹ் திருமண வரன்களை இணைக்கும் தமிழ்நாடு மற்றும் உலகளாவிய முஸ்லிம் குடும்பங்களுக்கான தலைசிறந்த திருமண தகவல் தளம்.',
-    footerVerified: '100% நம்பகமான & சரிபார்க்கப்பட்ட வரன்கள்',
+    footerVerified: 'இறைவனுக்கு அஞ்சி உண்மையான விவரங்களைப் பதிவு செய்யவும்',
     footerServicesTitle: 'எங்களின் சேவைகள் (Services)',
     footerService1: 'மணமகன் & மணமகள் புதிய வரன் இலவச பதிவு',
     footerService2: 'பெண்களுக்கான முழுமையான போட்டோ ரகசிய காப்பு',
@@ -520,14 +520,14 @@ export const translations = {
     modalAboutText1: 'In accordance with Islamic Shariah guidelines, we connect prospective brides and grooms transparently and reliably. Our foremost objective is to facilitate blessed, dowry-free marital matches for all Islamic families in Tamil Nadu and worldwide.',
     modalOurPolicy: 'Our Core Principles:',
     modalPolicy1: 'Strictly zero dowry policy (no giving or taking dowry).',
-    modalPolicy2: 'Genuine, verified, and honest profile credentials.',
+    modalPolicy2: 'The details entered here are the actual details registered by the user.',
     modalPolicy3: 'Dedicated and trustworthy family support service.',
     modalClose: 'Close',
 
     modalContactTitle: 'Contact Us',
     modalPhoneLabel: 'Phone Number',
     modalWhatsAppLabel: 'WhatsApp Support',
-    modalWhatsAppDirect: '+91 91718 96625 (Direct Chat)',
+    modalWhatsAppDirect: '+91 93445 11158 (Direct Chat)',
     modalWorkHoursLabel: 'Working Hours',
     modalWorkHoursVal: '9.00 AM to 9.00 PM (All 7 Days)',
 
@@ -540,7 +540,7 @@ export const translations = {
 
     // Footer
     footerAbout: 'Operating strictly under Islamic Shariah ethics, connecting verified, dowry-free Nikah matrimonial proposals for Tamil and worldwide Muslim families.',
-    footerVerified: '100% Verified & Genuine Muslim Profiles',
+    footerVerified: 'Fear God and enter the genuine details.',
     footerServicesTitle: 'Our Services',
     footerService1: 'Free Registration for Brides & Grooms',
     footerService2: 'Complete Photo Privacy Protection for Sisters',

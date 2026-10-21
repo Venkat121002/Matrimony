@@ -137,12 +137,12 @@ export function ContactModal({ isOpen, onClose }) {
             <div className="flex-1">
               <div className="text-[11px] text-emerald-800 font-bold">WhatsApp</div>
               <a
-                href="https://wa.me/919171896625"
+                href="https://wa.me/919344511158"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-extrabold text-sm sm:text-base text-emerald-900 hover:text-emerald-700 transition flex items-center justify-between gap-1.5"
               >
-                <span>9171896625</span>
+                <span>9344511158</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
                   {isTamil ? 'நேரடி அரட்டை' : 'Chat Now'}
                 </span>

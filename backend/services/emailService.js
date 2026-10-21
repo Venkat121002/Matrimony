@@ -87,7 +87,7 @@ export const sendWelcomeEmail = async (user) => {
         <p style="font-size: 14px;">Once verified by our administrators, your profile will receive a <strong>Verified Badge (சரிபார்க்கப்பட்டது)</strong> and appear in public district searches.</p>
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
-          Need assistance? Contact our matrimonial support helpline at <strong>+91 9171896625</strong> or reply to this email.
+          Need assistance? Contact our matrimonial support helpline at <strong>+91 9344511158</strong> or reply to this email.
         </p>
       </div>
       <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
@@ -144,7 +144,7 @@ export const sendVerificationStatusEmail = async (user, isApproved, rejectionRea
         }
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
-          For questions, reach out to admin support via WhatsApp/Call at <strong>+91 9171896625</strong>.
+          For questions, reach out to admin support via WhatsApp/Call at <strong>+91 9344511158</strong>.
         </p>
       </div>
       <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
@@ -199,7 +199,7 @@ export const sendPaymentReceiptEmail = async (user, payment) => {
         <p style="font-size: 14px;">You can now view detailed family information, contact numbers, and horoscopes/preferences without any monthly limits.</p>
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
-          Need support? Our customer care is available at <strong>+91 9171896625</strong>.
+          Need support? Our customer care is available at <strong>+91 9344511158</strong>.
         </p>
       </div>
       <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
@@ -361,7 +361,7 @@ export const sendPasswordResetOtpEmail = async (user, otp) => {
           For your security, never share this OTP with anyone. If you did not initiate this request, your account is safe and you can safely ignore this email.
         </p>
         <p style="margin-top: 25px; font-size: 13px; color: #665b49; border-top: 1px solid #e0d4be; padding-top: 15px;">
-          Need support? Reach out via WhatsApp or call <strong>+91 9171896625</strong>.
+          Need support? Reach out via WhatsApp or call <strong>+91 9344511158</strong>.
         </p>
       </div>
       <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">

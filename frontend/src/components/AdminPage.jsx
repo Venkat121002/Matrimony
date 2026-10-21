@@ -865,21 +865,20 @@ export default function AdminPage({ portalType = 'superadmin' }) {
     <div className="min-h-screen flex flex-col bg-[#f5efe1] text-gray-800 font-sans selection:bg-[#caa85d] selection:text-[#163828]">
       {/* ─── Top Islamic Green & Gold Header (Matching User Side) ─── */}
       <header className="bg-[#163828] border-b-2 border-[#caa85d] text-white shadow-lg sticky top-0 z-30">
-        {/* Top Bismillah Strip in Arabic directly inside green header */}
-        <div className="w-full pt-2.5 pb-1 px-3 text-center">
+        {/* Top Bismillah Strip in Tamil directly inside green header (slightly reduced size) */}
+        <div className="w-full pt-2 pb-0.5 px-3 text-center">
           <p
-            className="text-base sm:text-lg md:text-xl font-bold tracking-wide select-none"
+            className="text-xs sm:text-sm md:text-base font-semibold tracking-wide select-none"
             style={{
-              fontFamily: "'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', serif",
+              fontFamily: "'Noto Sans Tamil', system-ui, -apple-system, sans-serif",
               background: 'linear-gradient(180deg, #fff7d6 0%, #edd48e 40%, #caa85d 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8))',
             }}
-            dir="rtl"
-            title="بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ - Bismillah ir-Rahman ir-Rahim"
+            title="பிஸ்மில்லாஹிர் ரஹ்மானிர் ரஹீம்"
           >
-            بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+            பிஸ்மில்லாஹிர் ரஹ்மானிர் ரஹீம்
           </p>
         </div>
         <div className="max-w-6xl mx-auto px-4 pb-3 sm:pb-4 pt-1 flex flex-wrap items-center justify-between gap-3">

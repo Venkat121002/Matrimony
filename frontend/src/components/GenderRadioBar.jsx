@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUserTie, FaFemale, FaUsers, FaGlobe } from 'react-icons/fa';
+import { FaUserTie, FaFemale, FaUsers } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function GenderRadioBar({
@@ -59,22 +59,6 @@ export default function GenderRadioBar({
               </button>
             );
           })}
-
-          {/* Foreign Only Users Toggle Button */}
-          {onToggleForeignView && (
-            <button
-              type="button"
-              onClick={() => onToggleForeignView(!isForeignView)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full cursor-pointer select-none transition-all ml-auto ${
-                isForeignView
-                  ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-gray-950 font-black shadow-lg border border-amber-200 scale-105'
-                  : 'bg-amber-950/40 text-amber-200 hover:text-white hover:bg-amber-900/60 font-semibold border border-amber-500/40'
-              }`}
-            >
-              <FaGlobe className={`text-xs ${isForeignView ? 'text-gray-950 animate-spin' : 'text-amber-300'}`} />
-              <span>{isTamil ? 'வெளிநாட்டு வரன்கள் மட்டும்' : 'Overseas Profiles Only'}</span>
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,10 @@
-import { db } from '../../config/firebase.js';
+import { db, tenantCol } from '../../config/firebase.js';
 
 /**
  * Firestore `profileViews` collection. Doc id = viewer_viewed_month, which enforces
  * the old unique (viewerId, viewedProfileId, monthYear) index.
  */
-const viewsCol = db.collection('profileViews');
+const viewsCol = tenantCol('profileViews');
 
 // Distinct profile ids this viewer has ever opened.
 export const distinctViewedProfileIds = async (viewerId) => {

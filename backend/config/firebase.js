@@ -1,6 +1,7 @@
 import { initializeApp, getApps, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
 
 /**
  * Firebase Admin bootstrap.
@@ -29,6 +30,17 @@ export const db = process.env.FIRESTORE_DATABASE_ID
   ? getFirestore(process.env.FIRESTORE_DATABASE_ID)
   : getFirestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+/**
+ * Tenant: everything this app stores lives under `Matrimony/main/<collection>` (same layout as the
+ * MeyyaKutty project) so several apps can share one Firestore database without clashing.
+ */
+export const TENANT_NAME = 'Matrimony';
+export const tenantCol = (name) => db.collection(TENANT_NAME).doc('main').collection(name);
+
+// Identity Platform tenant holding this app's member logins (set AUTH_TENANT_ID, e.g. Matrimony-v70tx).
+export const AUTH_TENANT_ID = process.env.AUTH_TENANT_ID || '';
+export const tenantAuth = AUTH_TENANT_ID ? getAuth().tenantManager().authForTenant(AUTH_TENANT_ID) : null;
 
 // STORAGE_BUCKET selects a non-default bucket (prod uses the asia-south1 bucket,
 // not the project's US default bucket).

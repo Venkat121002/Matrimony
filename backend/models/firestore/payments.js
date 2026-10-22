@@ -1,12 +1,12 @@
 import { AggregateField } from 'firebase-admin/firestore';
-import { db, fromDoc, toData } from '../../config/firebase.js';
+import { tenantCol, fromDoc, toData } from '../../config/firebase.js';
 
 /**
  * Firestore `payments` collection, keyed by order id (unique by construction).
  * Amounts are stored in paise (e.g. 99900 = Rs. 999). Documents written by the old
  * Cashfree/Razorpay gateways stay in place (gateway != 'manual_upi') so revenue totals hold.
  */
-const paymentsCol = db.collection('payments');
+const paymentsCol = tenantCol('payments');
 
 export const createPayment = async (fields) => {
   const now = new Date();

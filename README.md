@@ -10,11 +10,11 @@ A full-stack Islamic matrimonial web application tailored for the Tamil-speaking
 Matrimony/
 ├── backend/                        # Express.js & MongoDB API
 │   ├── config/                     # Database connection (Mongoose & Atlas)
-│   ├── controllers/                # Business logic (Auth, Profiles, Admin, Payment, Support)
+│   ├── controllers/                # Business logic (Auth, Profiles, Admin, Payment screenshots, Support)
 │   ├── middleware/                 # JWT Auth, KYC upload (Multer), view-limits, Admin guards
 │   ├── models/                     # Mongoose schemas (User, Profile, SupportTicket)
 │   ├── routes/                     # API route declarations
-│   ├── services/                   # Email (Nodemailer) & Razorpay integrations
+│   ├── services/                   # Email (Nodemailer) & subscription activation
 │   ├── uploads/                    # Protected KYC document & profile uploads
 │   ├── utils/                      # Seed data script & Tamil Nadu districts constants
 │   ├── .env                        # Environment configurations (Port, Mongo URI, Secrets)
@@ -30,7 +30,7 @@ Matrimony/
 │   │   │   ├── AdminDashboard.jsx  # KYC approval & user management
 │   │   │   ├── FilterBox.jsx       # 38 Tamil Nadu districts & criteria filter
 │   │   │   ├── Navbar.jsx          # Header with user status & quick navigation
-│   │   │   ├── PaymentModal.jsx    # Razorpay checkout & subscription upgrades
+│   │   │   ├── PaymentModal.jsx    # UPI QR + screenshot upload (manual payment)
 │   │   │   ├── ProfileCard.jsx     # Profile display & Islamic etiquette badge
 │   │   │   ├── SupportModal.jsx    # Helpdesk ticketing interface
 │   │   │   ├── TamilInput.jsx      # Tamil virtual keyboard & phonetics
@@ -113,8 +113,6 @@ npm run dev      # Starts on http://localhost:5173
 | `PORT` | Express server port (default: 5000) |
 | `MONGO_URI` | MongoDB Atlas or Local connection string |
 | `JWT_SECRET` | Secret key for JSON Web Tokens |
-| `RAZORPAY_KEY_ID` | Razorpay Merchant Key ID |
-| `RAZORPAY_KEY_SECRET` | Razorpay Merchant Key Secret |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP Email server credentials |
 | `SMTP_USER` / `SMTP_PASS` | SMTP sender username and password (use an app password for Gmail) |
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASS` | Alternate SMTP variable names |

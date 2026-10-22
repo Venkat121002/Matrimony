@@ -2,8 +2,8 @@ import React from 'react';
 import { FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact }) {
-  const { t } = useLanguage();
+export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact, onOpenSupport }) {
+  const { t, isTamil } = useLanguage();
 
   return (
     <footer className="w-full bg-[#122e21] border-t-2 border-[#caa85d] text-[#e8dfce] shadow-2xl mt-8">
@@ -94,6 +94,23 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
                 </a>
               </div>
             </div>
+
+            {/* Website QR code */}
+            <div className="flex items-center gap-3 pt-2">
+              <img
+                src="/website-qr.jpg"
+                alt={isTamil ? 'இணையதள QR குறியீடு' : 'Website QR code'}
+                className="w-24 h-24 rounded-lg bg-white p-1.5 border-2 border-[#caa85d] shadow-md flex-shrink-0"
+              />
+              <div>
+                <div className="text-[11px] text-[#eed48e] font-bold">
+                  {isTamil ? 'எங்கள் இணையதளம்' : 'Our Website'}
+                </div>
+                <div className="text-xs text-[#d5cabb] leading-snug">
+                  {isTamil ? 'மொபைலில் ஸ்கேன் செய்து திறக்கவும்' : 'Scan with your phone to open the site'}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -129,6 +146,14 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
             >
               {t('aboutUs')}
             </button>
+            {onOpenSupport && (
+              <button
+                onClick={onOpenSupport}
+                className="px-3 py-1 rounded text-xs font-semibold bg-white/10 hover:bg-white/20 border border-[#caa85d]/50 text-[#edd48e] transition"
+              >
+                {isTamil ? 'உதவி மையம்' : 'Help Desk'}
+              </button>
+            )}
           </div>
         </div>
       </div>

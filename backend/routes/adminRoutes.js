@@ -13,6 +13,10 @@ import {
   triggerMatches,
   getSubscriptionSettings,
   updateSubscriptionSettings,
+  getPaymentRequests,
+  viewPaymentScreenshot,
+  approvePaymentRequest,
+  rejectPaymentRequest,
 } from '../controllers/adminController.js';
 import {
   getAllTickets,
@@ -63,6 +67,12 @@ router.get('/verifications', getVerificationQueue);
 router.put('/verifications/:id/approve', approveVerification);
 router.put('/verifications/:id/reject', rejectVerification);
 router.post('/verifications/:id/trigger-matches', triggerMatches);
+
+// Manual UPI payment requests: review screenshot, approve (activates plan) or reject
+router.get('/payments', getPaymentRequests);
+router.get('/payments/:orderId/screenshot', viewPaymentScreenshot);
+router.put('/payments/:orderId/approve', approvePaymentRequest);
+router.put('/payments/:orderId/reject', rejectPaymentRequest);
 
 // Private document streaming (never served publicly)
 router.get('/documents/:filename', viewSecureDocument);

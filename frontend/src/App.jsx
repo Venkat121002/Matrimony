@@ -543,15 +543,14 @@ export default function App() {
     }
   };
 
-  // Payment Upgrade Success Handler
-  const handlePaymentSuccess = (verifyData) => {
+  // Payment screenshot submitted: plan is activated later by an admin
+  const handlePaymentSubmitted = () => {
     showToast(
       isTamil
-        ? 'அல்ஹம்துலில்லாஹ்! பிரீமியம் சந்தா வெற்றிகரமாக செயல்படுத்தப்பட்டது. வரம்பற்ற வரன்களை பார்க்கலாம்! 👑'
-        : 'Payment Successful! Annual Premium Activated. You now have unlimited profile access! 👑',
+        ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் திட்டம் செயல்படுத்தப்படும். 🙏'
+        : 'Screenshot received! Your plan will be activated once our admin verifies the payment. 🙏',
       'success'
     );
-    refreshCurrentUser();
   };
 
   // Matrimonial Search & Filter Logic (Client-side fallback & fast filtering)
@@ -998,6 +997,7 @@ export default function App() {
         onOpenLogin={() => setIsLoginOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenContact={() => setIsContactOpen(true)}
+        onOpenSupport={() => setIsSupportOpen(true)}
       />
 
       {/* MODALS */}
@@ -1062,12 +1062,12 @@ export default function App() {
         onClose={() => setIsContactOpen(false)}
       />
 
-      {/* Cashfree Subscription Upgrade Modal */}
+      {/* Premium Subscription Upgrade Modal (manual UPI QR + screenshot) */}
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         user={currentUser}
-        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentSubmitted={handlePaymentSubmitted}
       />
 
       {/* Customer Support Desk Modal */}
@@ -1119,13 +1119,11 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         marqueeSettings={subscriptionSettings?.featuredMarquee}
-        onSuccess={() => {
-          refreshCurrentUser();
-          fetchProfiles();
+        onSubmitted={() => {
           showToast(
             isTamil
-              ? 'வாழ்த்துகள்! உங்கள் வரன் ஓடும் பட்டியில் வெற்றிகரமாக சேர்க்கப்பட்டது! 🌟'
-              : 'Congratulations! Your profile is now featured in the Running Marquee Bar! 🌟',
+              ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் வரன் ஓடும் பட்டியில் சேர்க்கப்படும். 🌟'
+              : 'Screenshot received! Your profile joins the Running Marquee Bar once our admin verifies the payment. 🌟',
             'success'
           );
         }}

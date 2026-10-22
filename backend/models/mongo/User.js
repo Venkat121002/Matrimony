@@ -286,6 +286,9 @@ const userSchema = new mongoose.Schema(
       default: 'free_trial',
       index: true,
     },
+    subscriptionPlan: {
+      type: String, // 'monthly' | 'annual' while premium
+    },
     trialExpiresAt: {
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial

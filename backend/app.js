@@ -5,7 +5,6 @@ import profileRoutes from './routes/profileRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
-import { handleWebhook } from './controllers/paymentController.js';
 import { streamStoredFile } from './middleware/uploadMiddleware.js';
 
 const app = express();
@@ -16,18 +15,6 @@ app.use(
     origin: '*',
     credentials: true,
   })
-);
-
-// Cashfree & Razorpay Webhook routes (capture raw body for signature verification)
-app.post(
-  '/api/webhooks/cashfree',
-  express.raw({ type: 'application/json' }),
-  handleWebhook
-);
-app.post(
-  '/api/webhooks/razorpay',
-  express.raw({ type: 'application/json' }),
-  handleWebhook
 );
 
 // Standard JSON and URL-encoded body parser with UTF-8 character support

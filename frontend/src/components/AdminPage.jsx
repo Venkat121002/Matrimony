@@ -39,10 +39,70 @@ import {
   FaToggleOff,
   FaUndo,
   FaHeadset,
+  FaRupeeSign,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import DefaultAvatar from './DefaultAvatar';
 import AudioPlayer from './AudioPlayer';
+
+// Payment screenshots live in private storage, so they are fetched with the admin key header.
+function PaymentScreenshot({ orderId, adminKey, onOpen }) {
+  const [src, setSrc] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl = '';
+    let cancelled = false;
+    setSrc('');
+    setFailed(false);
+    fetch(`/api/admin/payments/${encodeURIComponent(orderId)}/screenshot`, {
+      headers: { 'X-Admin-Key': adminKey || '' },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [orderId, adminKey]);
+
+  if (failed) {
+    return (
+      <div className="w-28 h-40 rounded-lg border border-red-300 bg-red-50 text-red-700 text-[10px] font-bold flex items-center justify-center text-center p-2 flex-shrink-0">
+        Screenshot unavailable
+      </div>
+    );
+  }
+  if (!src) {
+    return <div className="w-28 h-40 rounded-lg border border-[#dfd2ba] bg-gray-100 animate-pulse flex-shrink-0" />;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(src)}
+      className="w-28 h-40 rounded-lg border-2 border-[#caa85d] overflow-hidden bg-white cursor-zoom-in flex-shrink-0 hover:shadow-md transition"
+      title="Click to enlarge"
+    >
+      <img src={src} alt="Payment screenshot" className="w-full h-full object-cover object-top" />
+    </button>
+  );
+}
+
+const PAYMENT_PLAN_OPTIONS = [
+  { id: 'monthly_premium', labelEn: 'Monthly Premium', labelTa: 'மாதாந்திர பிரீமியம்', days: 30 },
+  { id: 'annual_premium', labelEn: 'Annual Premium', labelTa: 'வருடாந்திர பிரீமியம்', days: 365 },
+  { id: 'featured_marquee', labelEn: 'Running Bar Promotion', labelTa: 'ஓடும் பட்டி விளம்பரம்', days: null },
+];
 
 export default function AdminPage({ portalType = 'superadmin' }) {
   const { language, setLanguage, t, isTamil, translateName, translateValue, translateWorkPreference } = useLanguage();
@@ -484,6 +544,115 @@ export default function AdminPage({ portalType = 'superadmin' }) {
       showToast('Error clearing resolved tickets', 'error');
     } finally {
       setTicketActionLoadingId(null);
+    }
+  };
+
+  // Manual UPI Payment Requests (Admin Only - completely hidden on SuperAdmin side)
+  const [payments, setPayments] = useState([]);
+  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentFilter, setPaymentFilter] = useState('pending');
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState('');
+  const [paymentActionId, setPaymentActionId] = useState(null);
+  const [paymentEdits, setPaymentEdits] = useState({}); // orderId -> { planId, days, reason, rejecting }
+  const [paymentPreviewSrc, setPaymentPreviewSrc] = useState('');
+
+  const fetchPayments = useCallback(async () => {
+    if (isSuperAdmin) return;
+    try {
+      setPaymentsLoading(true);
+      const res = await fetch('/api/admin/payments', { headers: getHeaders() });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.payments)) {
+        setPayments(data.payments);
+      }
+    } catch (err) {
+      console.error('Failed to fetch payment requests:', err);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }, [getHeaders, isSuperAdmin]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isSuperAdmin) {
+      fetchPayments();
+    }
+  }, [isAuthenticated, isSuperAdmin, fetchPayments]);
+
+  const pendingPaymentsCount = useMemo(() => payments.filter((p) => p.status === 'pending').length, [payments]);
+
+  const filteredPayments = useMemo(() => {
+    const q = paymentSearchQuery.toLowerCase().trim();
+    return payments.filter((p) => {
+      if (paymentFilter !== 'all' && p.status !== paymentFilter) return false;
+      if (!q) return true;
+      return [p.user?.fullName, p.user?.nikahId, p.user?.phone, p.user?.email, p.transactionRef, p.planName].some((v) =>
+        (v || '').toLowerCase().includes(q)
+      );
+    });
+  }, [payments, paymentFilter, paymentSearchQuery]);
+
+  const editFor = (payment) => ({
+    planId: payment.planId,
+    days: '',
+    reason: '',
+    rejecting: false,
+    ...paymentEdits[payment.orderId],
+  });
+
+  const setEdit = (orderId, patch) => setPaymentEdits((prev) => ({ ...prev, [orderId]: { ...prev[orderId], ...patch } }));
+
+  const defaultDaysFor = (planId) =>
+    PAYMENT_PLAN_OPTIONS.find((o) => o.id === planId)?.days ?? (subSettings.featuredMarquee?.durationDays || 15);
+
+  const handleApprovePayment = async (payment) => {
+    const edit = editFor(payment);
+    try {
+      setPaymentActionId(payment.orderId);
+      const res = await fetch(`/api/admin/payments/${encodeURIComponent(payment.orderId)}/approve`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ planId: edit.planId, days: edit.days === '' ? undefined : Number(edit.days) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPayments((prev) => prev.map((p) => (p.orderId === payment.orderId ? data.payment : p)));
+        showToast(data.message, 'success');
+        fetchUsers();
+      } else {
+        showToast(data.message || 'Failed to approve payment', 'error');
+        fetchPayments();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error approving payment', 'error');
+    } finally {
+      setPaymentActionId(null);
+    }
+  };
+
+  const handleRejectPayment = async (payment) => {
+    const edit = editFor(payment);
+    try {
+      setPaymentActionId(payment.orderId);
+      const res = await fetch(`/api/admin/payments/${encodeURIComponent(payment.orderId)}/reject`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ reason: edit.reason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPayments((prev) => prev.map((p) => (p.orderId === payment.orderId ? data.payment : p)));
+        showToast(isTamil ? 'கட்டண கோரிக்கை நிராகரிக்கப்பட்டது.' : 'Payment request rejected.', 'success');
+      } else {
+        showToast(data.message || 'Failed to reject payment', 'error');
+        fetchPayments();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error rejecting payment', 'error');
+    } finally {
+      setPaymentActionId(null);
     }
   };
 
@@ -931,6 +1100,25 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   {openTicketsCount > 0 && (
                     <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] rounded-full font-bold">
                       {openTicketsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Payment Requests: UPI screenshots awaiting review (Admin only) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPaymentsOpen(true);
+                    fetchPayments();
+                  }}
+                  className="px-3 py-1.5 rounded-md bg-[#163828] hover:bg-[#205039] text-[#edd48e] font-black text-xs flex items-center gap-1.5 transition shadow border border-[#caa85d] cursor-pointer"
+                  title={isTamil ? 'கட்டண கோரிக்கைகள்' : 'Payment Requests'}
+                >
+                  <FaRupeeSign className="text-xs text-amber-300" />
+                  <span>{isTamil ? 'கட்டண கோரிக்கைகள்' : 'Payment Requests'}</span>
+                  {pendingPaymentsCount > 0 && (
+                    <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] rounded-full font-bold">
+                      {pendingPaymentsCount}
                     </span>
                   )}
                 </button>
@@ -2434,6 +2622,342 @@ export default function AdminPage({ portalType = 'superadmin' }) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ─── Payment Requests Modal: review UPI screenshots, approve (activates plan) or reject (Admin Only) ─── */}
+      {!isSuperAdmin && isPaymentsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          {...makeSafeBackdropProps(() => setIsPaymentsOpen(false))}
+        >
+          <div
+            className="w-full max-w-4xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
+            {...safeModalContentProps}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#caa85d] to-[#8a6d2f] flex items-center justify-center text-[#163828] shadow">
+                  <FaRupeeSign className="text-sm" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-[#fffae6] tracking-wide font-cinzel">
+                    {isTamil ? 'கட்டண கோரிக்கைகள் (UPI ஸ்கிரீன்ஷாட்)' : 'Payment Requests (UPI Screenshots)'}
+                  </h3>
+                  <p className="text-[11px] text-[#ebd7af]">
+                    {isTamil
+                      ? 'ஸ்கிரீன்ஷாட்டை சரிபார்த்து திட்டத்தை செயல்படுத்தவும் அல்லது நிராகரிக்கவும்'
+                      : 'Check the screenshot against your GPay history, then approve to activate the plan'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaymentsOpen(false)}
+                className="text-white/80 hover:text-white transition p-1 text-base cursor-pointer"
+                aria-label="Close"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {/* Tabs & Search */}
+            <div className="bg-[#ede4d1] p-3 border-b border-[#dfd2ba] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
+                {[
+                  { id: 'pending', labelEn: 'Pending', labelTa: 'நிலுவையில்' },
+                  { id: 'captured', labelEn: 'Approved', labelTa: 'ஏற்கப்பட்டது' },
+                  { id: 'rejected', labelEn: 'Rejected', labelTa: 'நிராகரிக்கப்பட்டது' },
+                  { id: 'all', labelEn: 'All', labelTa: 'அனைத்தும்' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setPaymentFilter(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition ${
+                      paymentFilter === tab.id
+                        ? 'bg-[#163828] text-[#edd48e] shadow-sm'
+                        : 'bg-white text-gray-700 hover:bg-[#faf4e6] border border-[#d2c2a3]'
+                    }`}
+                  >
+                    <span>{isTamil ? tab.labelTa : tab.labelEn}</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-black/10">
+                      {tab.id === 'all' ? payments.length : payments.filter((p) => p.status === tab.id).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <div className="relative flex-1 sm:w-56">
+                  <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                  <input
+                    type="text"
+                    value={paymentSearchQuery}
+                    onChange={(e) => setPaymentSearchQuery(e.target.value)}
+                    placeholder={isTamil ? 'பெயர் / ID / போன் தேட...' : 'Search name, ID, phone...'}
+                    className="w-full pl-7 pr-3 py-1 text-xs bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-1 focus:ring-[#caa85d] text-gray-900"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchPayments}
+                  className="p-1.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-[#c5b597] cursor-pointer"
+                  title="Refresh"
+                >
+                  <FaRedo className={`text-xs ${paymentsLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Request list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs sm:text-sm custom-scrollbar">
+              {paymentsLoading && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-center gap-2 font-bold animate-pulse">
+                  <FaClock />
+                  <span>{isTamil ? 'கோரிக்கைகள் ஏற்றப்படுகின்றன...' : 'Loading payment requests...'}</span>
+                </div>
+              )}
+
+              {filteredPayments.length === 0 && !paymentsLoading ? (
+                <div className="p-8 text-center bg-white border border-[#dfd2ba] rounded-xl space-y-2">
+                  <FaRupeeSign className="text-3xl text-gray-400 mx-auto" />
+                  <h4 className="font-bold text-gray-700">
+                    {isTamil ? 'கட்டண கோரிக்கைகள் எதுவும் இல்லை' : 'No payment requests here'}
+                  </h4>
+                  <p className="text-xs text-gray-500">
+                    {isTamil
+                      ? 'பயனாளர்கள் அனுப்பும் UPI ஸ்கிரீன்ஷாட்கள் இங்கு தோன்றும்.'
+                      : 'Screenshots members upload after paying by UPI will appear here.'}
+                  </p>
+                </div>
+              ) : (
+                filteredPayments.map((payment) => {
+                  const edit = editFor(payment);
+                  const busy = paymentActionId === payment.orderId;
+                  const isPending = payment.status === 'pending';
+                  const isApproved = payment.status === 'captured';
+                  const dateStr = payment.createdAt
+                    ? new Date(payment.createdAt).toLocaleString(isTamil ? 'ta-IN' : 'en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                    : '';
+                  const approvedPlan = PAYMENT_PLAN_OPTIONS.find((o) => o.id === payment.approvedPlanId);
+
+                  return (
+                    <div
+                      key={payment.orderId}
+                      className={`p-4 rounded-xl border shadow-xs flex flex-col sm:flex-row gap-4 ${
+                        isApproved
+                          ? 'bg-[#f7faf7] border-emerald-300'
+                          : payment.status === 'rejected'
+                          ? 'bg-[#fdf6f6] border-red-300'
+                          : 'bg-white border-[#caa85d]'
+                      }`}
+                    >
+                      <PaymentScreenshot orderId={payment.orderId} adminKey={adminKey} onOpen={setPaymentPreviewSrc} />
+
+                      <div className="flex-1 min-w-0 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-sm text-[#163828]">{payment.user?.fullName || 'Deleted member'}</span>
+                            {payment.user?.nikahId && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                                {payment.user.nikahId}
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                                isApproved
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                  : payment.status === 'rejected'
+                                  ? 'bg-red-100 text-red-900 border-red-300'
+                                  : 'bg-amber-100 text-amber-900 border-amber-300'
+                              }`}
+                            >
+                              {isApproved
+                                ? isTamil ? 'ஏற்கப்பட்டது' : 'Approved'
+                                : payment.status === 'rejected'
+                                ? isTamil ? 'நிராகரிக்கப்பட்டது' : 'Rejected'
+                                : isTamil ? 'நிலுவையில்' : 'Pending'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                            <FaClock className="text-[10px]" />
+                            <span>{dateStr}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          {payment.user?.phone && (
+                            <div className="flex items-center gap-1 text-[#163828] font-bold">
+                              <FaPhoneAlt className="text-[10px] text-green-700" />
+                              <a href={`tel:${payment.user.phone}`} className="hover:underline">{payment.user.phone}</a>
+                              <a
+                                href={`https://wa.me/${payment.user.phone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="ml-1 px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-extrabold"
+                              >
+                                WhatsApp
+                              </a>
+                            </div>
+                          )}
+                          {payment.user?.email && (
+                            <div className="flex items-center gap-1 text-gray-700 font-medium">
+                              <FaEnvelope className="text-[10px] text-amber-700" />
+                              <span>{payment.user.email}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="bg-[#fdfaf3] p-3 rounded-lg border border-[#e8ddc7] grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <div>
+                            <span className="text-gray-500">{isTamil ? 'தேர்ந்த திட்டம்: ' : 'Chosen plan: '}</span>
+                            <strong className="text-[#163828]">{payment.planName}</strong>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">{isTamil ? 'செலுத்த வேண்டிய தொகை: ' : 'Expected amount: '}</span>
+                            <strong className="text-[#8a6d2f]">₹{(payment.amount / 100).toLocaleString('en-IN')}</strong>
+                          </div>
+                          {payment.transactionRef && (
+                            <div className="sm:col-span-2">
+                              <span className="text-gray-500">{isTamil ? 'UPI பரிவர்த்தனை எண்: ' : 'UPI transaction ID: '}</span>
+                              <strong className="font-mono text-[#163828]">{payment.transactionRef}</strong>
+                            </div>
+                          )}
+                          {payment.user && (
+                            <div className="sm:col-span-2 text-[11px] text-gray-600">
+                              {isTamil ? 'தற்போதைய நிலை: ' : 'Current status: '}
+                              {payment.user.subscriptionStatus === 'premium' && payment.user.premiumExpiresAt
+                                ? `Premium until ${new Date(payment.user.premiumExpiresAt).toLocaleDateString('en-IN')}`
+                                : 'Free'}
+                              {payment.user.isFeatured && payment.user.featuredUntil
+                                ? ` • Featured until ${new Date(payment.user.featuredUntil).toLocaleDateString('en-IN')}`
+                                : ''}
+                            </div>
+                          )}
+                        </div>
+
+                        {isApproved && (
+                          <p className="text-xs text-emerald-800 font-semibold">
+                            ✓ {isTamil ? 'செயல்படுத்தப்பட்டது:' : 'Activated:'} {approvedPlan ? (isTamil ? approvedPlan.labelTa : approvedPlan.labelEn) : payment.planName}
+                            {payment.approvedDays ? ` • ${payment.approvedDays} ${isTamil ? 'நாட்கள்' : 'days'}` : ''}
+                            {payment.reviewedAt ? ` • ${new Date(payment.reviewedAt).toLocaleDateString('en-IN')}` : ''}
+                          </p>
+                        )}
+
+                        {payment.status === 'rejected' && (
+                          <p className="text-xs text-red-800 font-semibold">
+                            ✗ {isTamil ? 'காரணம்:' : 'Reason:'} {payment.rejectionReason}
+                          </p>
+                        )}
+
+                        {isPending && (
+                          <div className="space-y-2 pt-1">
+                            {!edit.rejecting ? (
+                              <div className="flex flex-wrap items-end gap-2">
+                                <label className="text-[11px] font-bold text-[#163828]">
+                                  {isTamil ? 'செயல்படுத்த வேண்டிய திட்டம்' : 'Plan to activate'}
+                                  <select
+                                    value={edit.planId}
+                                    onChange={(e) => setEdit(payment.orderId, { planId: e.target.value, days: '' })}
+                                    className="mt-0.5 block px-2 py-1.5 text-xs bg-white border border-[#c5b597] rounded-md text-gray-900"
+                                  >
+                                    {PAYMENT_PLAN_OPTIONS.map((o) => (
+                                      <option key={o.id} value={o.id}>
+                                        {isTamil ? o.labelTa : o.labelEn}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="text-[11px] font-bold text-[#163828]">
+                                  {isTamil ? 'நாட்கள்' : 'Days'}
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="3650"
+                                    value={edit.days}
+                                    onChange={(e) => setEdit(payment.orderId, { days: e.target.value })}
+                                    placeholder={String(defaultDaysFor(edit.planId))}
+                                    className="mt-0.5 block w-20 px-2 py-1.5 text-xs bg-white border border-[#c5b597] rounded-md text-gray-900"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => handleApprovePayment(payment)}
+                                  className="px-3.5 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs flex items-center gap-1.5 shadow disabled:opacity-50 cursor-pointer"
+                                >
+                                  <FaCheckCircle className="text-xs" />
+                                  <span>{busy ? '...' : isTamil ? 'ஏற்று செயல்படுத்துக' : 'Approve & Activate'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => setEdit(payment.orderId, { rejecting: true })}
+                                  className="px-3.5 py-1.5 rounded-md bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 font-extrabold text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                                >
+                                  <FaTimesCircle className="text-xs" />
+                                  <span>{isTamil ? 'நிராகரி' : 'Reject'}</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-end gap-2">
+                                <label className="text-[11px] font-bold text-[#163828] flex-1 min-w-[200px]">
+                                  {isTamil ? 'நிராகரிப்பு காரணம் (பயனருக்கு காட்டப்படும்)' : 'Reason (shown to the member)'}
+                                  <input
+                                    type="text"
+                                    value={edit.reason}
+                                    maxLength={300}
+                                    onChange={(e) => setEdit(payment.orderId, { reason: e.target.value })}
+                                    placeholder={isTamil ? 'எ.கா: தொகை பொருந்தவில்லை' : 'e.g. Amount does not match / payment not received'}
+                                    className="mt-0.5 block w-full px-2 py-1.5 text-xs bg-white border border-[#c5b597] rounded-md text-gray-900"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => handleRejectPayment(payment)}
+                                  className="px-3.5 py-1.5 rounded-md bg-red-700 hover:bg-red-800 text-white font-extrabold text-xs disabled:opacity-50 cursor-pointer"
+                                >
+                                  {busy ? '...' : isTamil ? 'நிராகரிப்பை உறுதிசெய்' : 'Confirm Reject'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => setEdit(payment.orderId, { rejecting: false })}
+                                  className="px-3 py-1.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-[#c5b597] font-bold text-xs cursor-pointer"
+                                >
+                                  {isTamil ? 'பின்செல்' : 'Back'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment screenshot full-size preview */}
+      {paymentPreviewSrc && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 cursor-zoom-out"
+          onClick={() => setPaymentPreviewSrc('')}
+        >
+          <img src={paymentPreviewSrc} alt="Payment screenshot" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white text-2xl p-2 cursor-pointer"
+            aria-label="Close preview"
+            onClick={() => setPaymentPreviewSrc('')}
+          >
+            <FaTimes />
+          </button>
         </div>
       )}
 

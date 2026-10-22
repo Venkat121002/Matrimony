@@ -10,12 +10,21 @@ export const getPaymentByOrderId = async (orderId) => {
   return plain(
     await Payment.findOne({
       $or: [
-        { cashfreeOrderId: orderId },
         { orderId: orderId },
+        { cashfreeOrderId: orderId },
         { razorpayOrderId: orderId },
       ],
     }).lean()
   );
+};
+
+// Manual UPI requests only, newest first.
+export const listPayments = async () =>
+  plain(await Payment.find({ gateway: 'manual_upi' }).sort({ createdAt: -1 }).limit(500).lean());
+
+export const listPaymentsByUser = async (userId) => {
+  if (!userId) return [];
+  return plain(await Payment.find({ userId, gateway: 'manual_upi' }).sort({ createdAt: -1 }).lean());
 };
 
 export const updatePayment = async (payment, patch) => {

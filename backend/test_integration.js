@@ -215,40 +215,83 @@ async function runTests() {
     assert(false, `Chosen profiles limit test failed: ${e.message}`);
   }
 
-  // 8. Cashfree Payment: Create Order & Upgrade to Premium
+  // 8. Manual UPI payment: upload screenshot -> admin reviews -> admin approves -> Premium
   try {
-    console.log(`\nTesting Cashfree Order Creation and Premium Upgrade...`);
-    const orderRes = await fetch(`${API_BASE}/payment/create-order`, {
+    console.log(`
+Testing Manual UPI Payment (screenshot upload + admin approval)...`);
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    );
+
+    // Non-image uploads are rejected
+    const badForm = new FormData();
+    badForm.append('planId', 'annual_premium');
+    badForm.append('screenshot', new Blob(['not an image'], { type: 'text/plain' }), 'proof.txt');
+    const badRes = await fetch(`${API_BASE}/payment/submit-proof`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userToken}`,
-      },
-      body: JSON.stringify({ planId: 'annual_premium' }),
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: badForm,
+    });
+    assert(badRes.status === 400, 'Non-image payment proof is rejected');
+
+    const form = new FormData();
+    form.append('planId', 'annual_premium');
+    form.append('transactionRef', 'TEST-UTR-123456');
+    form.append('screenshot', new Blob([png], { type: 'image/png' }), 'proof.png');
+    const submitRes = await fetch(`${API_BASE}/payment/submit-proof`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: form,
     }).then((r) => r.json());
 
-    assert(orderRes.success === true, 'Cashfree order created successfully');
-    assert(orderRes.amount === 99900, 'Order amount is ₹999 (99900 paise)');
+    assert(submitRes.success === true, 'Payment screenshot submitted');
+    assert(submitRes.request.status === 'pending', 'New payment request is pending review');
+    assert(submitRes.request.amount === 99900, 'Request amount is ₹999 (99900 paise)');
 
-    // Verify payment and upgrade user
-    const verifyRes = await fetch(`${API_BASE}/payment/verify-payment`, {
+    const dupForm = new FormData();
+    dupForm.append('planId', 'annual_premium');
+    dupForm.append('screenshot', new Blob([png], { type: 'image/png' }), 'proof.png');
+    const dupRes = await fetch(`${API_BASE}/payment/submit-proof`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userToken}`,
-      },
-      body: JSON.stringify({
-        razorpayOrderId: orderRes.orderId,
-        razorpayPaymentId: `pay_test_${Date.now()}`,
-        razorpaySignature: 'demo_verified_signature',
-      }),
-    }).then((r) => r.json());
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: dupForm,
+    });
+    assert(dupRes.status === 409, 'A second request while one is pending is blocked');
 
-    assert(verifyRes.success === true, 'Payment verified successfully');
-    assert(verifyRes.subscriptionStatus === 'premium', 'User upgraded to Premium Membership');
-    assert(verifyRes.user.subscriptionStatus === 'premium', 'Upgraded user object returned in verify response');
+    const listRes = await fetch(`${API_BASE}/admin/payments`, { headers: { 'X-Admin-Key': adminKey } }).then((r) => r.json());
+    assert(
+      listRes.success && listRes.payments.some((p) => p.orderId === submitRes.request.orderId && p.hasScreenshot),
+      'Admin sees the pending request with its screenshot'
+    );
+
+    const shotRes = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/screenshot`, {
+      headers: { 'X-Admin-Key': adminKey },
+    });
+    assert(shotRes.ok && shotRes.headers.get('content-type') === 'image/png', 'Admin can open the uploaded screenshot');
+
+    const noAuthShot = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/screenshot`);
+    assert(noAuthShot.status === 401 || noAuthShot.status === 403, 'Screenshot is not public');
+
+    const approveRes = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/approve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({}),
+    }).then((r) => r.json());
+    assert(approveRes.success === true, 'Admin approves the payment');
+    assert(approveRes.payment.user.subscriptionStatus === 'premium', 'User upgraded to Premium Membership');
+
+    const reApprove = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/approve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({}),
+    });
+    assert(reApprove.status === 409, 'An approved request cannot be approved twice');
+
+    const meRes = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${userToken}` } }).then((r) => r.json());
+    assert((meRes.user || meRes).subscriptionStatus === 'premium', 'Member account reflects Premium after approval');
   } catch (e) {
-    assert(false, `Payment upgrade failed: ${e.message}`);
+    assert(false, `Manual payment flow failed: ${e.message}`);
   }
 
   // 9. Premium Benefits Verification:
@@ -322,20 +365,23 @@ async function runTests() {
     assert(brideReg.success === true, 'Test Bride account registered');
 
     // Upgrade Bride to Premium
-    const brideOrder = await fetch(`${API_BASE}/payment/create-order`, {
+    const brideProof = new FormData();
+    brideProof.append('planId', 'annual_premium');
+    brideProof.append(
+      'screenshot',
+      new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')], { type: 'image/png' }),
+      'proof.png'
+    );
+    const brideOrder = await fetch(`${API_BASE}/payment/submit-proof`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${brideReg.token}` },
-      body: JSON.stringify({ planId: 'annual_premium' }),
+      headers: { Authorization: `Bearer ${brideReg.token}` },
+      body: brideProof,
     }).then((r) => r.json());
 
-    await fetch(`${API_BASE}/payment/verify-payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${brideReg.token}` },
-      body: JSON.stringify({
-        razorpayOrderId: brideOrder.orderId,
-        razorpayPaymentId: `pay_test_${Date.now()}`,
-        razorpaySignature: 'demo_verified_signature',
-      }),
+    await fetch(`${API_BASE}/admin/payments/${brideOrder.request.orderId}/approve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({}),
     });
 
     // B. Now a new suitable Groom joins (Age 27, Never married)

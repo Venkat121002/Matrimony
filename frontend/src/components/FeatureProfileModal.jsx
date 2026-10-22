@@ -3,19 +3,18 @@ import { FaTimes, FaCrown, FaCheckCircle, FaBolt, FaStar, FaShieldAlt } from 're
 import { useLanguage } from '../context/LanguageContext';
 import { useModalBackdrop } from '../hooks/useModalBackdrop';
 import DefaultAvatar from './DefaultAvatar';
+import PaymentProofForm from './PaymentProofForm';
 
 export default function FeatureProfileModal({
   isOpen,
   onClose,
   currentUser,
   onOpenLogin,
-  onSuccess,
+  onSubmitted,
   marqueeSettings,
 }) {
   const { t, isTamil, translateName } = useLanguage();
   const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const [price, setPrice] = useState(marqueeSettings?.price || 299);
   const [durationDays, setDurationDays] = useState(marqueeSettings?.durationDays || 15);
 
@@ -31,162 +30,6 @@ export default function FeatureProfileModal({
   }, [marqueeSettings]);
 
   if (!isOpen) return null;
-
-  // Load Cashfree dynamically
-  const loadCashfreeScript = () => {
-    return new Promise((resolve) => {
-      if (window.Cashfree) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  const verifyAndFeature = async (token, payload) => {
-    try {
-      const verifyRes = await fetch('/api/payment/verify-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const verifyData = await verifyRes.json();
-      if (verifyData.success) {
-        if (onSuccess) onSuccess(verifyData);
-        onClose();
-      } else {
-        setErrorMsg(
-          verifyData.message ||
-            (isTamil ? 'Cashfree கட்டண சரிபார்ப்பு தோல்வியடைந்தது.' : 'Payment verification failed on Cashfree.')
-        );
-      }
-    } catch (verErr) {
-      setErrorMsg(
-        isTamil
-          ? 'கட்டணத்தை உறுதிப்படுத்துவதில் பிழை ஏற்பட்டது. தயவுசெய்து ஆதரவைத் தொடர்பு கொள்ளவும்.'
-          : 'Error confirming payment with Cashfree. Please contact support.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePromote = async () => {
-    if (isAlreadyFeatured) {
-      setErrorMsg(
-        isTamil
-          ? 'உங்கள் வரன் ஏற்கனவே முகப்பு ஓடும் பட்டியில் செயலில் உள்ளது.'
-          : 'Your profile is already featured in the Running Marquee Bar.'
-      );
-      return;
-    }
-
-    if (!currentUser) {
-      if (onOpenLogin) onOpenLogin();
-      onClose();
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
-    try {
-      const token = localStorage.getItem('nikah_token');
-      if (!token) {
-        setErrorMsg(isTamil ? 'மேம்படுத்த முன் உள்நுழையவும்.' : 'Please log in before featuring your profile.');
-        setLoading(false);
-        return;
-      }
-
-      // 1. Create Order on Backend for 'featured_marquee'
-      const orderRes = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ planId: 'featured_marquee' }),
-      });
-
-      const orderData = await orderRes.json();
-      if (!orderRes.ok || !orderData.success) {
-        throw new Error(
-          orderData.message ||
-            (isTamil
-              ? 'Cashfree கட்டண போர்ட்டலை துவக்க முடியவில்லை.'
-              : 'Could not initiate Cashfree payment order.')
-        );
-      }
-
-      if (!orderData.paymentSessionId) {
-        throw new Error(
-          isTamil
-            ? 'Cashfree கட்டண அமர்வு கிடைக்கவில்லை. தயவுசெய்து சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.'
-            : 'Cashfree payment session is unavailable. Please try again later.'
-        );
-      }
-
-      // 2. Load Cashfree SDK
-      const scriptLoaded = await loadCashfreeScript();
-
-      if (!scriptLoaded || !window.Cashfree) {
-        throw new Error(
-          isTamil
-            ? 'Cashfree கட்டண போர்ட்டலை ஏற்ற முடியவில்லை. உங்கள் இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
-            : 'Could not open Cashfree payment portal. Please check your internet connection and try again.'
-        );
-      }
-
-      // 3. Configure Cashfree Checkout
-      const cashfree = window.Cashfree({
-        mode: orderData.environment || 'sandbox',
-      });
-
-      cashfree
-        .checkout({
-          paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: '_modal',
-        })
-        .then(async (result) => {
-          if (result.error) {
-            console.warn('[Cashfree Modal Result]:', result.error);
-            setErrorMsg(
-              result.error.message ||
-                (isTamil ? 'கட்டணம் செலுத்தப்படவில்லை அல்லது ரத்து செய்யப்பட்டது.' : 'Payment was not completed.')
-            );
-            setLoading(false);
-            return;
-          }
-
-          // Modal checkout succeeded
-          await verifyAndFeature(token, {
-            orderId: orderData.orderId,
-            paymentSessionId: orderData.paymentSessionId,
-          });
-        })
-        .catch((checkoutErr) => {
-          console.error('[Cashfree SDK Checkout Exception]:', checkoutErr);
-          setErrorMsg(
-            isTamil
-              ? 'Cashfree கட்டண போர்ட்டலை திறக்க முடியவில்லை. இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
-              : 'Unable to open Cashfree payment portal. Please try again.'
-          );
-          setLoading(false);
-        });
-    } catch (err) {
-      console.error('[Feature Payment Error]:', err);
-      setErrorMsg(err.message || (isTamil ? 'விளம்பரம் துவங்குவதில் தோல்வி.' : 'Failed to initiate promotion.'));
-      setLoading(false);
-    }
-  };
 
   return (
     <div
@@ -245,12 +88,6 @@ export default function FeatureProfileModal({
                   </p>
                 )}
               </div>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className="p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-xs font-semibold">
-              ⚠️ {errorMsg}
             </div>
           )}
 
@@ -366,24 +203,34 @@ export default function FeatureProfileModal({
                     : 'No payment needed — profile is actively featured.'}
                 </p>
               </div>
+            ) : currentUser ? (
+              <PaymentProofForm
+                planId="featured_marquee"
+                amount={price}
+                onSubmitted={(data) => {
+                  if (onSubmitted) onSubmitted(data);
+                }}
+              />
             ) : (
               <button
                 type="button"
-                disabled={loading || !currentUser}
-                onClick={handlePromote}
-                className="w-full py-2.5 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-500 text-gray-950 border border-amber-300 shadow-lg transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                onClick={() => {
+                  if (onOpenLogin) onOpenLogin();
+                  onClose();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-gray-950 border border-amber-300 shadow-lg flex items-center justify-center gap-2 cursor-pointer"
               >
                 <FaCrown className="text-[#163828]" />
-                <span>
-                  {loading
-                    ? (isTamil ? 'Cashfree வாயில் துவங்குகிறது...' : 'Connecting to Cashfree...')
-                    : (isTamil ? `₹${price} செலுத்தி வரனை முன்னிலைப்படுத்துக (Cashfree)` : `Pay ₹${price} & Feature Profile Now`)}
-                </span>
+                <span>{isTamil ? 'உள்நுழைந்து தொடரவும்' : 'Log in to continue'}</span>
               </button>
             )}
             <p className="text-[10px] text-center text-gray-500 mt-2 flex items-center justify-center gap-1">
               <FaShieldAlt className="text-emerald-700" />
-              <span>{isTamil ? 'Cashfree 100% பாதுகாப்பான கட்டண முறை' : 'Cashfree 100% Safe & Secure Transaction'}</span>
+              <span>
+                {isTamil
+                  ? 'UPI / GPay மூலம் செலுத்தவும் • நிர்வாகி சரிபார்த்த பின் செயல்படுத்தப்படும்'
+                  : 'Pay via UPI / GPay • Activated after admin verification'}
+              </span>
             </p>
           </div>
         </div>

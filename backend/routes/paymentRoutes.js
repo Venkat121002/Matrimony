@@ -1,13 +1,14 @@
 import express from 'express';
-import { createOrder, verifyPayment } from '../controllers/paymentController.js';
+import { submitPaymentProof, getMyPaymentRequests } from '../controllers/paymentController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import { uploadPaymentProof } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// Generate Cashfree Order
-router.post('/create-order', verifyToken, createOrder);
+// Member uploads a GPay/UPI payment screenshot for admin review
+router.post('/submit-proof', verifyToken, uploadPaymentProof, submitPaymentProof);
 
-// Verify Cashfree Payment
-router.post('/verify-payment', verifyToken, verifyPayment);
+// Member's own request history
+router.get('/my-requests', verifyToken, getMyPaymentRequests);
 
 export default router;

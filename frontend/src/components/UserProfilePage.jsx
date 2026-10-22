@@ -305,22 +305,12 @@ export default function UserProfilePage() {
     }
   };
 
-  const handlePaymentSuccess = (verifyData) => {
-    if (verifyData.user) {
-      setCurrentUser(verifyData.user);
-      localStorage.setItem('nikah_user', JSON.stringify(verifyData.user));
-    } else {
-      setCurrentUser((prev) => ({
-        ...prev,
-        subscriptionStatus: 'premium',
-        premiumExpiresAt: verifyData.premiumExpiresAt,
-      }));
-    }
-    refreshUser();
+  // Payment screenshot submitted: an admin activates the plan after verifying it
+  const handlePaymentSubmitted = () => {
     showToast(
       isTamil
-        ? 'அல்ஹம்துலில்லாஹ்! பிரீமியம் சந்தா வெற்றிகரமாக செயல்படுத்தப்பட்டது! வரம்பற்ற வசதிகளைப் பயன்படுத்தலாம்! 👑'
-        : 'Alhamdulillah! Premium membership activated successfully! Unlimited features unlocked! 👑',
+        ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் திட்டம் செயல்படுத்தப்படும். 🙏'
+        : 'Screenshot received! Your plan will be activated once our admin verifies the payment. 🙏',
       'success'
     );
   };
@@ -926,12 +916,12 @@ export default function UserProfilePage() {
         }}
       />
 
-      {/* Cashfree Subscription Upgrade Modal */}
+      {/* Premium Subscription Upgrade Modal (manual UPI QR + screenshot) */}
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         user={currentUser}
-        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentSubmitted={handlePaymentSubmitted}
       />
 
       {/* Running Marquee Bar Profile Promotion Modal */}
@@ -940,12 +930,11 @@ export default function UserProfilePage() {
         onClose={() => setIsFeatureMarqueeOpen(false)}
         currentUser={currentUser}
         marqueeSettings={subscriptionSettings?.featuredMarquee}
-        onSuccess={() => {
-          refreshUser();
+        onSubmitted={() => {
           showToast(
             isTamil
-              ? 'வாழ்த்துகள்! உங்கள் வரன் ஓடும் முகப்பு பட்டியில் வெற்றிகரமாக சேர்க்கப்பட்டது! 🌟'
-              : 'Congratulations! Your profile has been featured in the Top Running Marquee Bar! 🌟',
+              ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் வரன் ஓடும் பட்டியில் சேர்க்கப்படும். 🌟'
+              : 'Screenshot received! Your profile joins the Running Marquee Bar once our admin verifies the payment. 🌟',
             'success'
           );
         }}

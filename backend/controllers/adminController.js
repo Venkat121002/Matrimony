@@ -8,12 +8,13 @@ import {
   deleteUserById,
   byCreatedDesc,
 } from '../models/users.js';
-import { totalCapturedPaise } from '../models/payments.js';
+import { totalCapturedPaise, listPayments, listPaymentsByUser, getPaymentByOrderId, updatePayment } from '../models/payments.js';
+import { resolvePlan, applyPlanToUser, PLAN_IDS } from '../services/subscriptionService.js';
 import { countTickets } from '../models/supportTickets.js';
 import { deleteViewsForUser } from '../models/profileViews.js';
 import { streamStoredFile, deleteStoredFile } from '../middleware/uploadMiddleware.js';
 import { getAdminSecretKey, getAdminCreds } from '../config/secrets.js';
-import { sendVerificationStatusEmail } from '../services/emailService.js';
+import { sendVerificationStatusEmail, sendPaymentReceiptEmail } from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
 import { getSettings, updateSettings } from '../models/settings.js';
 
@@ -353,6 +354,166 @@ export const updateUserSubscription = async (req, res) => {
   }
 };
 
+// Admin-facing view of a manual payment request, joined with the member who sent it.
+const adminPaymentView = (payment, user) => ({
+  orderId: payment.orderId,
+  planId: payment.planId,
+  planName: payment.planName,
+  amount: payment.amount,
+  status: payment.status,
+  transactionRef: payment.transactionRef || '',
+  hasScreenshot: Boolean(payment.screenshot),
+  rejectionReason: payment.rejectionReason || '',
+  approvedPlanId: payment.approvedPlanId || null,
+  approvedDays: payment.approvedDays || null,
+  createdAt: payment.createdAt,
+  reviewedAt: payment.reviewedAt || null,
+  user: user
+    ? {
+        _id: user._id,
+        nikahId: user.nikahId,
+        fullName: user.fullName,
+        phone: user.phone,
+        email: user.email,
+        subscriptionStatus: user.subscriptionStatus,
+        premiumExpiresAt: user.premiumExpiresAt || null,
+        isFeatured: Boolean(user.isFeatured),
+        featuredUntil: user.featuredUntil || null,
+      }
+    : null,
+});
+
+/**
+ * List manual payment requests (screenshots) with the member's details
+ * GET /api/admin/payments
+ */
+export const getPaymentRequests = async (req, res) => {
+  try {
+    const payments = await listPayments();
+    const userIds = [...new Set(payments.map((p) => String(p.userId)))];
+    const users = new Map(
+      (await Promise.all(userIds.map((id) => getUserById(id).catch(() => null)))).filter(Boolean).map((u) => [String(u._id), u])
+    );
+    res.json({
+      success: true,
+      payments: payments.map((p) => adminPaymentView(p, users.get(String(p.userId)))),
+    });
+  } catch (err) {
+    console.error('[Admin getPaymentRequests Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to load payment requests.' });
+  }
+};
+
+/**
+ * Stream a payment screenshot to the admin (private storage, never public)
+ * GET /api/admin/payments/:orderId/screenshot
+ */
+export const viewPaymentScreenshot = async (req, res) => {
+  try {
+    const payment = await getPaymentByOrderId(req.params.orderId);
+    if (!payment?.screenshot) {
+      return res.status(404).json({ success: false, message: 'Screenshot not found.' });
+    }
+    const found = await streamStoredFile('payments', path.basename(payment.screenshot), res, {
+      'Content-Disposition': 'inline',
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+    });
+    if (!found) {
+      return res.status(404).json({ success: false, message: 'Screenshot file not found in storage.' });
+    }
+  } catch (err) {
+    console.error('[Admin viewPaymentScreenshot Error]:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming screenshot.' });
+  }
+};
+
+/**
+ * Approve a payment request and activate the plan on the member's account.
+ * The admin may override the plan and the number of days before approving.
+ * PUT /api/admin/payments/:orderId/approve   body: { planId?, days? }
+ */
+export const approvePaymentRequest = async (req, res) => {
+  try {
+    const payment = await getPaymentByOrderId(req.params.orderId);
+    if (!payment || payment.gateway !== 'manual_upi') {
+      return res.status(404).json({ success: false, message: 'Payment request not found.' });
+    }
+    if (payment.status !== 'pending') {
+      return res.status(409).json({ success: false, message: `This request was already ${payment.status}.` });
+    }
+
+    const user = await getUserById(String(payment.userId));
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'The member who sent this payment no longer exists.' });
+    }
+
+    const settings = await getSettings();
+    const planId = req.body.planId || payment.planId;
+    if (!PLAN_IDS.includes(planId)) {
+      return res.status(400).json({ success: false, message: 'Please choose a valid plan.' });
+    }
+    const plan = resolvePlan(planId, settings);
+    const days = req.body.days === undefined || req.body.days === '' ? plan.days : Number(req.body.days);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      return res.status(400).json({ success: false, message: 'Days must be a whole number between 1 and 3650.' });
+    }
+
+    const expiresAt = await applyPlanToUser(user, plan, days);
+    await updatePayment(payment, {
+      status: 'captured',
+      capturedAt: new Date(),
+      reviewedAt: new Date(),
+      approvedPlanId: planId,
+      approvedDays: days,
+      rejectionReason: '',
+    });
+
+    sendPaymentReceiptEmail(user, { ...payment, planName: plan.title, expiresAt }).catch((err) =>
+      console.error('[Email Worker] Payment receipt error:', err.message)
+    );
+
+    res.json({
+      success: true,
+      message: `${plan.title} activated for ${user.nikahId} until ${expiresAt.toLocaleDateString('en-IN')}.`,
+      payment: adminPaymentView(payment, user),
+    });
+  } catch (err) {
+    console.error('[Admin approvePaymentRequest Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to approve payment request.' });
+  }
+};
+
+/**
+ * Reject a payment request (wrong amount, unreadable or fake screenshot, ...).
+ * PUT /api/admin/payments/:orderId/reject   body: { reason? }
+ */
+export const rejectPaymentRequest = async (req, res) => {
+  try {
+    const payment = await getPaymentByOrderId(req.params.orderId);
+    if (!payment || payment.gateway !== 'manual_upi') {
+      return res.status(404).json({ success: false, message: 'Payment request not found.' });
+    }
+    if (payment.status !== 'pending') {
+      return res.status(409).json({ success: false, message: `This request was already ${payment.status}.` });
+    }
+
+    const reason = String(req.body.reason || '').trim().slice(0, 300) || 'Payment could not be verified.';
+    await updatePayment(payment, { status: 'rejected', reviewedAt: new Date(), rejectionReason: reason });
+
+    const user = await getUserById(String(payment.userId)).catch(() => null);
+    res.json({
+      success: true,
+      message: 'Payment request rejected.',
+      payment: adminPaymentView(payment, user),
+    });
+  } catch (err) {
+    console.error('[Admin rejectPaymentRequest Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to reject payment request.' });
+  }
+};
+
 /**
  * Delete User Account Permanently
  * DELETE /api/admin/users/:id
@@ -368,8 +529,12 @@ export const deleteUser = async (req, res) => {
     const mediaFiles = [...(user.photos || []), user.audioClip?.url].filter(
       (u) => typeof u === 'string' && u.startsWith('/uploads/media/')
     );
+    const paymentProofs = (await listPaymentsByUser(String(user._id)).catch(() => []))
+      .map((p) => p.screenshot)
+      .filter(Boolean);
     await Promise.all([
       ...mediaFiles.map((u) => deleteStoredFile('media', path.basename(u)).catch(() => {})),
+      ...paymentProofs.map((f) => deleteStoredFile('payments', f).catch(() => {})),
       user.kycDocument?.filename ? deleteStoredFile('kyc', user.kycDocument.filename).catch(() => {}) : null,
       deleteViewsForUser(String(user._id)).catch(() => {}),
     ]);

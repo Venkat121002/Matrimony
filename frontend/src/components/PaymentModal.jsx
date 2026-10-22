@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FaTimes, FaCrown, FaCheckCircle, FaShieldAlt, FaLock, FaBolt, FaCalendarAlt } from 'react-icons/fa';
+import { FaTimes, FaCrown, FaCheckCircle, FaShieldAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import { useModalBackdrop } from '../hooks/useModalBackdrop';
+import PaymentProofForm from './PaymentProofForm';
 
-export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }) {
+export default function PaymentModal({ isOpen, onClose, user, onPaymentSubmitted }) {
   const { t, isTamil } = useLanguage();
   const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('annual'); // 'monthly' | 'annual'
   const [annualPrice, setAnnualPrice] = useState(999);
   const [monthlyPrice, setMonthlyPrice] = useState(199);
@@ -20,7 +19,6 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
 
   useEffect(() => {
     if (isOpen) {
-      setErrorMsg('');
       fetch('/api/profiles/subscription-settings')
         .then((res) => res.json())
         .then((data) => {
@@ -44,157 +42,6 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
     selectedPlan === 'monthly'
       ? (isTamil ? '30 நாட்கள் (1 மாதம்) செல்லுபடியாகும்' : 'Valid for 30 Days (1 Month)')
       : (isTamil ? '365 நாட்கள் (1 வருடம்) செல்லுபடியாகும்' : 'Valid for 365 Days (1 Year)');
-
-  // Load Cashfree Script dynamically
-  const loadCashfreeScript = () => {
-    return new Promise((resolve) => {
-      if (window.Cashfree) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  const verifyAndComplete = async (token, payload) => {
-    try {
-      const verifyRes = await fetch('/api/payment/verify-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const verifyData = await verifyRes.json();
-      if (verifyData.success) {
-        if (onPaymentSuccess) onPaymentSuccess(verifyData);
-        onClose();
-      } else {
-        setErrorMsg(
-          verifyData.message ||
-            (isTamil ? 'கட்டணம் சரிபார்ப்பு தோல்வியடைந்தது.' : 'Payment verification failed on Cashfree.')
-        );
-      }
-    } catch (verErr) {
-      setErrorMsg(
-        isTamil
-          ? 'கட்டணத்தை உறுதிப்படுத்துவதில் பிழை ஏற்பட்டது. தயவுசெய்து ஆதரவைத் தொடர்பு கொள்ளவும்.'
-          : 'Error confirming payment with Cashfree. Please contact support.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpgrade = async () => {
-    if (isAlreadySubscribed) {
-      setErrorMsg(
-        isTamil
-          ? 'நீங்கள் ஏற்கனவே செயலில் உள்ள பிரீமியம் சந்தா பெற்றுள்ளீர்கள்.'
-          : 'You already have an active Premium Membership subscription.'
-      );
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
-    try {
-      const token = localStorage.getItem('nikah_token');
-      if (!token) {
-        setErrorMsg(isTamil ? 'மேம்படுத்த முன் உள்நுழையவும்.' : 'Please log in before upgrading your subscription.');
-        setLoading(false);
-        return;
-      }
-
-      // 1. Create Order on Backend
-      const planId = selectedPlan === 'monthly' ? 'monthly_premium' : 'annual_premium';
-      const orderRes = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ planId }),
-      });
-
-      const orderData = await orderRes.json();
-      if (!orderRes.ok || !orderData.success) {
-        throw new Error(
-          orderData.message ||
-            (isTamil
-              ? 'Cashfree கட்டண போர்ட்டலை துவக்க முடியவில்லை.'
-              : 'Could not initiate Cashfree payment order.')
-        );
-      }
-
-      if (!orderData.paymentSessionId) {
-        throw new Error(
-          isTamil
-            ? 'Cashfree கட்டண அமர்வு கிடைக்கவில்லை. தயவுசெய்து சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.'
-            : 'Cashfree payment session is unavailable. Please try again later.'
-        );
-      }
-
-      // 2. Load Cashfree SDK
-      const scriptLoaded = await loadCashfreeScript();
-
-      if (!scriptLoaded || !window.Cashfree) {
-        throw new Error(
-          isTamil
-            ? 'Cashfree கட்டண போர்ட்டலை ஏற்ற முடியவில்லை. உங்கள் இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
-            : 'Could not open Cashfree payment portal. Please check your internet connection and try again.'
-        );
-      }
-
-      // 3. Configure and Open Cashfree Checkout
-      const cashfree = window.Cashfree({
-        mode: orderData.environment || 'sandbox',
-      });
-
-      cashfree
-        .checkout({
-          paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: '_modal',
-        })
-        .then(async (result) => {
-          if (result.error) {
-            console.warn('[Cashfree Modal Result]:', result.error);
-            setErrorMsg(
-              result.error.message ||
-                (isTamil ? 'கட்டணம் செலுத்தப்படவில்லை அல்லது ரத்து செய்யப்பட்டது.' : 'Payment was not completed.')
-            );
-            setLoading(false);
-            return;
-          }
-
-          // Modal checkout reported success - verify authentic status with backend
-          await verifyAndComplete(token, {
-            orderId: orderData.orderId,
-            paymentSessionId: orderData.paymentSessionId,
-          });
-        })
-        .catch((checkoutErr) => {
-          console.error('[Cashfree SDK Checkout Exception]:', checkoutErr);
-          setErrorMsg(
-            isTamil
-              ? 'Cashfree கட்டண போர்ட்டலை திறக்க முடியவில்லை. பொத்தான் செயல்படவில்லை என்றால் இணைய இணைப்பை சரிபார்க்கவும்.'
-              : 'Unable to open Cashfree payment portal. Please check your internet connection and try again.'
-          );
-          setLoading(false);
-        });
-    } catch (err) {
-      console.error('[Payment Error]:', err);
-      setErrorMsg(err.message || (isTamil ? 'கட்டணம் துவங்குவதில் தோல்வி.' : 'Payment failed to initiate.'));
-      setLoading(false);
-    }
-  };
 
   return (
     <div
@@ -386,14 +233,7 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
             </div>
           </div>
 
-          {/* Error Message */}
-          {errorMsg && (
-            <div className="p-3 bg-red-50 border border-red-300 text-red-700 rounded-lg text-xs font-semibold">
-              ⚠️ {errorMsg}
-            </div>
-          )}
-
-          {/* Upgrade Button or Already Subscribed Disabled Button */}
+          {/* Already subscribed: nothing to pay */}
           {isAlreadySubscribed ? (
             <div className="space-y-1">
               <button
@@ -412,38 +252,29 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSuccess }
                   : 'No payment needed — your subscription is active.'}
               </p>
             </div>
+          ) : !user ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center text-xs text-amber-900">
+              {isTamil ? 'பணம் செலுத்த முதலில் உள்நுழையவும்.' : 'Please log in to pay and upgrade.'}
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleUpgrade}
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-xl btn-gold text-sm sm:text-base font-extrabold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-98 transition disabled:opacity-50 cursor-pointer"
-            >
-              <FaBolt className="text-[#163828]" />
-              <span>
-                {loading
-                  ? (isTamil ? 'Cashfree வாயில் துவங்குகிறது...' : 'Connecting to Cashfree...')
-                  : (isTamil
-                      ? `₹${currentPrice} செலுத்துக (${selectedPlan === 'monthly' ? 'மாதாந்திரம்' : 'வருடாந்திரம்'} - Cashfree)`
-                      : `Pay ₹${currentPrice} with Cashfree (${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'})`)}
-              </span>
-            </button>
+            <PaymentProofForm
+              key={selectedPlan}
+              planId={selectedPlan === 'monthly' ? 'monthly_premium' : 'annual_premium'}
+              amount={currentPrice}
+              onSubmitted={(data) => {
+                if (onPaymentSubmitted) onPaymentSubmitted(data);
+              }}
+            />
           )}
 
-          {/* Secure Payment Badges */}
-          <div className="flex items-center justify-center gap-3 text-[11px] text-gray-500 pt-1">
-            <span className="flex items-center gap-1">
-              <FaLock className="text-gray-400" />
-              <span>256-bit SSL</span>
+          <p className="text-[11px] text-center text-gray-500 pt-1 flex items-center justify-center gap-1">
+            <FaShieldAlt className="text-gray-400" />
+            <span>
+              {isTamil
+                ? 'UPI / GPay மூலம் நேரடியாக செலுத்தவும் • நிர்வாகி சரிபார்த்த பின் செயல்படுத்தப்படும்'
+                : 'Pay directly via UPI / GPay • Activated after admin verification'}
             </span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              <FaShieldAlt className="text-gray-400" />
-              <span>Cashfree Gateway</span>
-            </span>
-            <span>•</span>
-            <span>UPI / GPay / Cards</span>
-          </div>
+          </p>
         </div>
       </div>
     </div>

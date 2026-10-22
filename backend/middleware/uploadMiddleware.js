@@ -8,6 +8,7 @@ import { saveFile, streamFile, deleteFile } from '../services/fileStorage.js';
  * (Cloud Storage in production, backend/uploads/ locally):
  *   media/<file>  -> public photos / audio clips, served at /uploads/media/<file>
  *   kyc/<file>    -> private identity documents, only streamed to admins
+ *   payments/<file> -> private payment screenshots, only streamed to admins
  */
 
 // Cloud Functions has already read the request body into req.rawBody, so multer's
@@ -90,7 +91,28 @@ const mediaFilter = (req, file, cb) => {
   }
 };
 
+// Payment screenshots: images only, extension taken from the mimetype (never from the client's filename).
+const PROOF_EXTENSIONS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+
+const proofFilename = (file) => `pay-${uniqueSuffix()}${PROOF_EXTENSIONS[file.mimetype] || '.jpg'}`;
+
+const proofFilter = (req, file, cb) => {
+  if (PROOF_EXTENSIONS[file.mimetype]) {
+    cb(null, true);
+  } else {
+    const err = new Error('Invalid file type. Please upload your payment screenshot as a JPG, PNG or WEBP image.');
+    err.status = 400;
+    cb(err, false);
+  }
+};
+
 // Cloud Functions caps request bodies at 32MB, so keep totals well under that.
+export const uploadPaymentProof = [
+  rawBodyShim,
+  multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 }, fileFilter: proofFilter }).single('screenshot'),
+  persist('payments', proofFilename),
+];
+
 export const uploadKYC = (fieldName) => [
   rawBodyShim,
   multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter }).single(fieldName),

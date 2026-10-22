@@ -480,7 +480,7 @@ export const featureMyProfile = async (req, res) => {
     if (user.role !== 'admin' && user.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
-        message: 'Profile promotion in marquee requires payment via Cashfree.',
+        message: 'Profile promotion in marquee requires payment. Please pay by UPI and upload your screenshot.',
       });
     }
 

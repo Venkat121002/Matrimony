@@ -18,13 +18,18 @@ export const getPaymentByOrderId = async (orderId) => {
   );
 };
 
-// Manual UPI requests only, newest first.
-export const listPayments = async () =>
-  plain(await Payment.find({ gateway: 'manual_upi' }).sort({ createdAt: -1 }).limit(500).lean());
-
 export const listPaymentsByUser = async (userId) => {
   if (!userId) return [];
-  return plain(await Payment.find({ userId, gateway: 'manual_upi' }).sort({ createdAt: -1 }).lean());
+  return plain(await Payment.find({ userId }).sort({ createdAt: -1 }).lean());
+};
+
+// Atomically move a payment from created/failed to 'processing' (see firestore driver).
+export const claimPaymentForCapture = async (orderId) => {
+  const res = await Payment.updateOne(
+    { orderId, status: { $in: ['created', 'failed'] } },
+    { $set: { status: 'processing', updatedAt: new Date() } }
+  );
+  return res.modifiedCount === 1;
 };
 
 export const updatePayment = async (payment, patch) => {

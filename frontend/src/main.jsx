@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import AdminPage from './components/AdminPage.jsx'
 import UserProfilePage from './components/UserProfilePage.jsx'
+import LegalPage from './components/LegalPage.jsx'
 import { LanguageProvider } from './context/LanguageContext.jsx'
 
 /**
@@ -80,12 +81,29 @@ export function isProfilePath(pathname = window.location.pathname) {
 }
 
 /**
+ * Public legal pages: /privacy-policy, /terms-conditions, /terms-of-service, /refund-cancellation-policy (trailing slash allowed).
+ * Returns the page key, or null when the path is not a legal page.
+ */
+export function getLegalPageKey(pathname = window.location.pathname) {
+  const clean = String(pathname || '').toLowerCase().replace(/\/+$/, '');
+  const map = {
+    '/privacy-policy': 'privacy-policy',
+    '/terms-conditions': 'terms-conditions',
+    '/terms-of-service': 'terms-of-service',
+    '/refund-cancellation-policy': 'refund-cancellation-policy',
+    '/refund-policy': 'refund-cancellation-policy', // older address, kept so existing links keep working
+  };
+  return map[clean] || null;
+}
+
+/**
  * Determines current route mode: 'superadmin' | 'admin' | 'user'
  */
 export function getRouteMode(pathname = window.location.pathname) {
   if (isSuperAdminPath(pathname)) return 'superadmin';
   if (isAdminPath(pathname)) return 'admin';
   if (isProfilePath(pathname)) return 'profile';
+  if (getLegalPageKey(pathname)) return 'legal';
   return 'user';
 }
 
@@ -107,6 +125,8 @@ function RootRouter() {
         <AdminPage portalType="superadmin" />
       ) : routeMode === 'admin' ? (
         <AdminPage portalType="admin" />
+      ) : routeMode === 'legal' ? (
+        <LegalPage pageKey={getLegalPageKey()} />
       ) : routeMode === 'profile' ? (
         <UserProfilePage />
       ) : (

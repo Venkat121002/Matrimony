@@ -9,6 +9,10 @@ const secrets = [
   'ADMIN_SECRET_KEY',
   'ADMIN_PASSWORD',
   'SUPERADMIN_PASSWORD',
+  // Zoho Payments (see services/zohoPayments.js)
+  'ZOHO_CLIENT_SECRET',
+  'ZOHO_REFRESH_TOKEN',
+  'ZOHO_WEBHOOK_SIGNING_KEY',
   // Add 'SMTP_PASS' here (and set SMTP_HOST/SMTP_USER in .env.<project>) once a real
   // mail provider is configured; until then emails are only logged.
 ].map((name) => defineSecret(name));

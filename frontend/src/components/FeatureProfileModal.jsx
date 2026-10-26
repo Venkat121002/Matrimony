@@ -3,14 +3,14 @@ import { FaTimes, FaCrown, FaCheckCircle, FaBolt, FaStar, FaShieldAlt } from 're
 import { useLanguage } from '../context/LanguageContext';
 import { useModalBackdrop } from '../hooks/useModalBackdrop';
 import DefaultAvatar from './DefaultAvatar';
-import PaymentProofForm from './PaymentProofForm';
+import ZohoCheckoutButton from './ZohoCheckoutButton';
 
 export default function FeatureProfileModal({
   isOpen,
   onClose,
   currentUser,
   onOpenLogin,
-  onSubmitted,
+  onPaid,
   marqueeSettings,
 }) {
   const { t, isTamil, translateName } = useLanguage();
@@ -204,11 +204,12 @@ export default function FeatureProfileModal({
                 </p>
               </div>
             ) : currentUser ? (
-              <PaymentProofForm
+              <ZohoCheckoutButton
                 planId="featured_marquee"
                 amount={price}
-                onSubmitted={(data) => {
-                  if (onSubmitted) onSubmitted(data);
+                onPaid={(data) => {
+                  if (onPaid) onPaid(data);
+                  onClose();
                 }}
               />
             ) : (
@@ -228,8 +229,8 @@ export default function FeatureProfileModal({
               <FaShieldAlt className="text-emerald-700" />
               <span>
                 {isTamil
-                  ? 'UPI / GPay மூலம் செலுத்தவும் • நிர்வாகி சரிபார்த்த பின் செயல்படுத்தப்படும்'
-                  : 'Pay via UPI / GPay • Activated after admin verification'}
+                  ? 'Zoho Payments மூலம் பாதுகாப்பான கட்டணம் • உடனடியாக செயல்படுத்தப்படும்'
+                  : 'Secure payment by Zoho Payments • Activated instantly'}
               </span>
             </p>
           </div>

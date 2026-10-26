@@ -544,13 +544,14 @@ export default function App() {
   };
 
   // Payment screenshot submitted: plan is activated later by an admin
-  const handlePaymentSubmitted = () => {
+  const handlePaymentPaid = () => {
     showToast(
       isTamil
-        ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் திட்டம் செயல்படுத்தப்படும். 🙏'
-        : 'Screenshot received! Your plan will be activated once our admin verifies the payment. 🙏',
+        ? 'கட்டணம் வெற்றிகரமாக பெறப்பட்டது! உங்கள் பிரீமியம் உறுப்பினர் இப்போது செயலில் உள்ளது. 🎉'
+        : 'Payment successful! Your Premium Membership is now active. 🎉',
       'success'
     );
+    refreshCurrentUser();
   };
 
   // Matrimonial Search & Filter Logic (Client-side fallback & fast filtering)
@@ -1067,7 +1068,7 @@ export default function App() {
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         user={currentUser}
-        onPaymentSubmitted={handlePaymentSubmitted}
+        onPaid={handlePaymentPaid}
       />
 
       {/* Customer Support Desk Modal */}
@@ -1119,13 +1120,14 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         marqueeSettings={subscriptionSettings?.featuredMarquee}
-        onSubmitted={() => {
+        onPaid={() => {
           showToast(
             isTamil
-              ? 'கட்டண ஸ்கிரீன்ஷாட் பெறப்பட்டது. நிர்வாகி சரிபார்த்த பின் உங்கள் வரன் ஓடும் பட்டியில் சேர்க்கப்படும். 🌟'
-              : 'Screenshot received! Your profile joins the Running Marquee Bar once our admin verifies the payment. 🌟',
+              ? 'கட்டணம் வெற்றிகரமாக பெறப்பட்டது! உங்கள் வரன் இப்போது ஓடும் பட்டியில் உள்ளது. 🌟'
+              : 'Payment successful! Your profile is now in the Running Marquee Bar. 🌟',
             'success'
           );
+          refreshCurrentUser();
         }}
       />
     </div>

@@ -215,83 +215,25 @@ async function runTests() {
     assert(false, `Chosen profiles limit test failed: ${e.message}`);
   }
 
-  // 8. Manual UPI payment: upload screenshot -> admin reviews -> admin approves -> Premium
+  // 8. Premium upgrade. The Zoho Payments checkout itself is covered by test_zoho_payments.js
+  //    (stubbed Zoho API); here the admin grants Premium so the benefit checks below can run.
   try {
     console.log(`
-Testing Manual UPI Payment (screenshot upload + admin approval)...`);
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-      'base64'
-    );
-
-    // Non-image uploads are rejected
-    const badForm = new FormData();
-    badForm.append('planId', 'annual_premium');
-    badForm.append('screenshot', new Blob(['not an image'], { type: 'text/plain' }), 'proof.txt');
-    const badRes = await fetch(`${API_BASE}/payment/submit-proof`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}` },
-      body: badForm,
-    });
-    assert(badRes.status === 400, 'Non-image payment proof is rejected');
-
-    const form = new FormData();
-    form.append('planId', 'annual_premium');
-    form.append('transactionRef', 'TEST-UTR-123456');
-    form.append('screenshot', new Blob([png], { type: 'image/png' }), 'proof.png');
-    const submitRes = await fetch(`${API_BASE}/payment/submit-proof`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}` },
-      body: form,
-    }).then((r) => r.json());
-
-    assert(submitRes.success === true, 'Payment screenshot submitted');
-    assert(submitRes.request.status === 'pending', 'New payment request is pending review');
-    assert(submitRes.request.amount === 99900, 'Request amount is ₹999 (99900 paise)');
-
-    const dupForm = new FormData();
-    dupForm.append('planId', 'annual_premium');
-    dupForm.append('screenshot', new Blob([png], { type: 'image/png' }), 'proof.png');
-    const dupRes = await fetch(`${API_BASE}/payment/submit-proof`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}` },
-      body: dupForm,
-    });
-    assert(dupRes.status === 409, 'A second request while one is pending is blocked');
-
-    const listRes = await fetch(`${API_BASE}/admin/payments`, { headers: { 'X-Admin-Key': adminKey } }).then((r) => r.json());
-    assert(
-      listRes.success && listRes.payments.some((p) => p.orderId === submitRes.request.orderId && p.hasScreenshot),
-      'Admin sees the pending request with its screenshot'
-    );
-
-    const shotRes = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/screenshot`, {
-      headers: { 'X-Admin-Key': adminKey },
-    });
-    assert(shotRes.ok && shotRes.headers.get('content-type') === 'image/png', 'Admin can open the uploaded screenshot');
-
-    const noAuthShot = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/screenshot`);
-    assert(noAuthShot.status === 401 || noAuthShot.status === 403, 'Screenshot is not public');
-
-    const approveRes = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/approve`, {
+Granting Premium (admin) for benefit checks...`);
+    const grantRes = await fetch(`${API_BASE}/admin/users/${registeredUser._id}/subscription`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ subscriptionStatus: 'premium', days: 365 }),
     }).then((r) => r.json());
-    assert(approveRes.success === true, 'Admin approves the payment');
-    assert(approveRes.payment.user.subscriptionStatus === 'premium', 'User upgraded to Premium Membership');
+    assert(grantRes.success === true, 'Admin grants Premium Membership');
 
-    const reApprove = await fetch(`${API_BASE}/admin/payments/${submitRes.request.orderId}/approve`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
-      body: JSON.stringify({}),
-    });
-    assert(reApprove.status === 409, 'An approved request cannot be approved twice');
+    const oldFlow = await fetch(`${API_BASE}/payment/submit-proof`, { method: 'POST', headers: { Authorization: `Bearer ${userToken}` } });
+    assert(oldFlow.status === 404, 'Retired manual UPI screenshot endpoint is gone');
 
     const meRes = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${userToken}` } }).then((r) => r.json());
-    assert((meRes.user || meRes).subscriptionStatus === 'premium', 'Member account reflects Premium after approval');
+    assert((meRes.user || meRes).subscriptionStatus === 'premium', 'Member account reflects Premium');
   } catch (e) {
-    assert(false, `Manual payment flow failed: ${e.message}`);
+    assert(false, `Premium upgrade failed: ${e.message}`);
   }
 
   // 9. Premium Benefits Verification:
@@ -365,23 +307,10 @@ Testing Manual UPI Payment (screenshot upload + admin approval)...`);
     assert(brideReg.success === true, 'Test Bride account registered');
 
     // Upgrade Bride to Premium
-    const brideProof = new FormData();
-    brideProof.append('planId', 'annual_premium');
-    brideProof.append(
-      'screenshot',
-      new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')], { type: 'image/png' }),
-      'proof.png'
-    );
-    const brideOrder = await fetch(`${API_BASE}/payment/submit-proof`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${brideReg.token}` },
-      body: brideProof,
-    }).then((r) => r.json());
-
-    await fetch(`${API_BASE}/admin/payments/${brideOrder.request.orderId}/approve`, {
+    await fetch(`${API_BASE}/admin/users/${brideReg.user._id}/subscription`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ subscriptionStatus: 'premium', days: 365 }),
     });
 
     // B. Now a new suitable Groom joins (Age 27, Never married)

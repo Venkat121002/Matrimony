@@ -162,8 +162,14 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
       <div className="w-full bg-[#0a1b13] border-t border-[#caa85d]/40 py-3.5 px-4 text-center text-xs font-medium text-[#c4b598]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>© 2026 Tamil Muslim Nikkah</p>
-          <div className="flex items-center gap-4 text-xs">
-            <button onClick={onOpenAbout} className="hover:text-white transition">{t('footerTerms')}</button>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+            <a href="/privacy-policy" className="hover:text-white transition">{isTamil ? 'தனியுரிமைக் கொள்கை' : 'Privacy Policy'}</a>
+            <span>•</span>
+            <a href="/terms-conditions" className="hover:text-white transition">{isTamil ? 'விதிமுறைகள் & நிபந்தனைகள்' : 'Terms & Conditions'}</a>
+            <span>•</span>
+            <a href="/terms-of-service" className="hover:text-white transition">{isTamil ? 'சேவை விதிமுறைகள்' : 'Terms of Service'}</a>
+            <span>•</span>
+            <a href="/refund-cancellation-policy" className="hover:text-white transition">{isTamil ? 'பணம் திரும்பப் பெறுதல் & ரத்து கொள்கை' : 'Refund & Cancellation Policy'}</a>
             <span>•</span>
             <button onClick={onOpenContact} className="hover:text-white transition">{t('contact')}</button>
             <span>•</span>

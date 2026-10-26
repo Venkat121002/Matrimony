@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
 /**
- * Manual UPI payment requests (QR + screenshot, reviewed by an admin).
- * Records created by the old Cashfree/Razorpay gateways are kept read-only so revenue
- * totals stay correct; their legacy fields are listed at the bottom.
+ * Zoho Payments orders (orderId = Zoho payments_session_id).
+ * Records created by earlier gateways (Cashfree/Razorpay/manual UPI) are kept read-only so
+ * revenue totals stay correct; their legacy fields are listed at the bottom.
  */
 const paymentSchema = new mongoose.Schema(
   {
@@ -19,7 +19,7 @@ const paymentSchema = new mongoose.Schema(
     },
     gateway: {
       type: String,
-      default: 'manual_upi',
+      default: 'zoho',
     },
     planId: {
       type: String, // 'monthly_premium' | 'annual_premium' | 'featured_marquee'
@@ -34,37 +34,37 @@ const paymentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['created', 'pending', 'captured', 'rejected', 'failed'],
-      default: 'pending',
+      enum: ['created', 'processing', 'pending', 'captured', 'rejected', 'failed'],
+      default: 'created',
       index: true,
     },
     planName: {
       type: String,
       default: 'Premium Annual Membership',
     },
-    screenshot: {
-      type: String, // stored filename under the private `payments/` folder
-    },
-    transactionRef: {
-      type: String, // optional UPI transaction / UTR id typed by the user
-    },
-    reviewedAt: {
-      type: Date,
-    },
-    approvedPlanId: {
+    zohoPaymentId: {
       type: String,
     },
-    approvedDays: {
-      type: Number,
-    },
-    rejectionReason: {
+    referenceNumber: {
       type: String,
+    },
+    expiresAt: {
+      type: Date, // plan expiry after this payment was applied
     },
     capturedAt: {
       type: Date,
     },
+    failureReason: {
+      type: String,
+    },
 
-    // Legacy gateway fields (read-only history)
+    // Legacy fields (read-only history): manual UPI, Cashfree, Razorpay
+    screenshot: { type: String },
+    transactionRef: { type: String },
+    reviewedAt: { type: Date },
+    approvedPlanId: { type: String },
+    approvedDays: { type: Number },
+    rejectionReason: { type: String },
     cashfreeOrderId: { type: String },
     cashfreePaymentId: { type: String },
     paymentSessionId: { type: String },

@@ -1,14 +1,15 @@
 import express from 'express';
-import { submitPaymentProof, getMyPaymentRequests } from '../controllers/paymentController.js';
+import { createSession, confirmPayment } from '../controllers/paymentController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
-import { uploadPaymentProof } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// Member uploads a GPay/UPI payment screenshot for admin review
-router.post('/submit-proof', verifyToken, uploadPaymentProof, submitPaymentProof);
+// Start a Zoho Payments checkout session for a plan
+router.post('/create-session', verifyToken, createSession);
 
-// Member's own request history
-router.get('/my-requests', verifyToken, getMyPaymentRequests);
+// Browser reports widget success; the server re-checks with Zoho before activating
+router.post('/confirm', verifyToken, confirmPayment);
+
+// (The Zoho webhook is mounted in app.js with a raw body parser.)
 
 export default router;

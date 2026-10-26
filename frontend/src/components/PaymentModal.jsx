@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { FaTimes, FaCrown, FaCheckCircle, FaShieldAlt } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import { useModalBackdrop } from '../hooks/useModalBackdrop';
-import PaymentProofForm from './PaymentProofForm';
+import ZohoCheckoutButton from './ZohoCheckoutButton';
 
-export default function PaymentModal({ isOpen, onClose, user, onPaymentSubmitted }) {
+export default function PaymentModal({ isOpen, onClose, user, onPaid }) {
   const { t, isTamil } = useLanguage();
   const { backdropProps, modalContentProps } = useModalBackdrop(onClose);
   const [selectedPlan, setSelectedPlan] = useState('annual'); // 'monthly' | 'annual'
@@ -257,12 +257,13 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSubmitted
               {isTamil ? 'பணம் செலுத்த முதலில் உள்நுழையவும்.' : 'Please log in to pay and upgrade.'}
             </div>
           ) : (
-            <PaymentProofForm
+            <ZohoCheckoutButton
               key={selectedPlan}
               planId={selectedPlan === 'monthly' ? 'monthly_premium' : 'annual_premium'}
               amount={currentPrice}
-              onSubmitted={(data) => {
-                if (onPaymentSubmitted) onPaymentSubmitted(data);
+              onPaid={(data) => {
+                if (onPaid) onPaid(data);
+                onClose();
               }}
             />
           )}
@@ -271,8 +272,8 @@ export default function PaymentModal({ isOpen, onClose, user, onPaymentSubmitted
             <FaShieldAlt className="text-gray-400" />
             <span>
               {isTamil
-                ? 'UPI / GPay மூலம் நேரடியாக செலுத்தவும் • நிர்வாகி சரிபார்த்த பின் செயல்படுத்தப்படும்'
-                : 'Pay directly via UPI / GPay • Activated after admin verification'}
+                ? 'Zoho Payments மூலம் பாதுகாப்பான கட்டணம் (UPI, கார்டு, நெட் பேங்கிங்) • உடனடியாக செயல்படுத்தப்படும்'
+                : 'Secure payment by Zoho Payments (UPI, cards, net banking) • Activated instantly'}
             </span>
           </p>
         </div>

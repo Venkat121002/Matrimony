@@ -95,20 +95,15 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
               </div>
             </div>
 
-            {/* Website QR code */}
-            <div className="flex items-center gap-3 pt-2">
-              <img
-                src="/website-qr.jpg"
-                alt={isTamil ? 'இணையதள QR குறியீடு' : 'Website QR code'}
-                className="w-24 h-24 rounded-lg bg-white p-1.5 border-2 border-[#caa85d] shadow-md flex-shrink-0"
-              />
-              <div>
-                <div className="text-[11px] text-[#eed48e] font-bold">
-                  {isTamil ? 'எங்கள் இணையதளம்' : 'Our Website'}
-                </div>
-                <div className="text-xs text-[#d5cabb] leading-snug">
-                  {isTamil ? 'மொபைலில் ஸ்கேன் செய்து திறக்கவும்' : 'Scan with your phone to open the site'}
-                </div>
+            {/* QR Code - Separated and Non-Clickable */}
+            <div className="pt-3 mt-1 border-t border-[#caa85d]/20">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 p-1.5 bg-white rounded-lg border-2 border-[#caa85d] shadow-md inline-block">
+                <img
+                  src="/qr-code.jpg"
+                  alt="QR Code"
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  draggable={false}
+                />
               </div>
             </div>
           </div>

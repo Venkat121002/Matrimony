@@ -1,15 +1,25 @@
 import express from 'express';
-import { createSession, confirmPayment } from '../controllers/paymentController.js';
+import {
+  // createOrder,
+  // verifyPayment,
+  submitPaymentProof,
+  getUserPaymentProofs,
+} from '../controllers/paymentController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import { uploadPaymentProof } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// Start a Zoho Payments checkout session for a plan
-router.post('/create-session', verifyToken, createSession);
+// Generate Cashfree Order (legacy/fallback)
+// router.post('/create-order', verifyToken, createOrder);
 
-// Browser reports widget success; the server re-checks with Zoho before activating
-router.post('/confirm', verifyToken, confirmPayment);
+// Verify Cashfree Payment (legacy/fallback)
+// router.post('/verify-payment', verifyToken, verifyPayment);
 
-// (The Zoho webhook is mounted in app.js with a raw body parser.)
+// Submit Manual QR Payment Proof with Screenshot
+router.post('/submit-proof', verifyToken, uploadPaymentProof, submitPaymentProof);
+
+// Get User's Submitted Payment Proofs
+router.get('/my-proofs', verifyToken, getUserPaymentProofs);
 
 export default router;

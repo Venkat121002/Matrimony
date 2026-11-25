@@ -6,8 +6,8 @@ const driver = await import(isFirestore ? './firestore/payments.js' : './mongo/p
 export const {
   createPayment,
   getPaymentByOrderId,
-  listPaymentsByUser,
-  claimPaymentForCapture,
+  getPaymentById,
   updatePayment,
   totalCapturedPaise,
+  findPayments,
 } = driver;

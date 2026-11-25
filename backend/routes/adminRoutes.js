@@ -13,6 +13,10 @@ import {
   triggerMatches,
   getSubscriptionSettings,
   updateSubscriptionSettings,
+  getPaymentProofs,
+  approvePaymentProof,
+  rejectPaymentProof,
+  toggleUserFeatured,
 } from '../controllers/adminController.js';
 import {
   getAllTickets,
@@ -71,7 +75,13 @@ router.get('/documents/:filename', viewSecureDocument);
 router.get('/users', getAllUsers);
 router.put('/users/:id/suspend', toggleSuspendUser);
 router.put('/users/:id/subscription', updateUserSubscription);
+router.put('/users/:id/featured', toggleUserFeatured);
 router.delete('/users/:id', deleteUser);
+
+// Payment Proofs Verification
+router.get('/payment-proofs', getPaymentProofs);
+router.put('/payment-proofs/:id/approve', approvePaymentProof);
+router.put('/payment-proofs/:id/reject', rejectPaymentProof);
 
 // Support tickets in admin panel
 router.get('/tickets', getAllTickets);

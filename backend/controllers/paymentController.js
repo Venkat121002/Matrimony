@@ -1,10 +1,6 @@
-import {
-  createPayment,
-  getPaymentByOrderId,
-  claimPaymentForCapture,
-  updatePayment,
-} from '../models/payments.js';
-import { getUserById } from '../models/users.js';
+import crypto from 'crypto';
+import { createPayment, getPaymentByOrderId, updatePayment, findPayments } from '../models/payments.js';
+import { getUserById, updateUser } from '../models/users.js';
 import { getSettings } from '../models/settings.js';
 import { resolvePlan, applyPlanToUser, isPremiumActive, isFeaturedActive } from '../services/subscriptionService.js';
 import {
@@ -224,5 +220,118 @@ export const zohoWebhook = async (req, res) => {
     console.error('[Zoho Webhook Error]:', err.message);
     // 5xx makes Zoho redeliver later.
     res.status(500).json({ success: false });
+  }
+};
+
+/**
+ * Submit Manual Payment Proof with Screenshot
+ * POST /api/payment/submit-proof
+ */
+export const submitPaymentProof = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Please log in to submit payment proof.' });
+    }
+
+    if (!req.file || !req.file.filename) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment screenshot proof is mandatory. Please upload a clear screenshot of your UPI payment.',
+      });
+    }
+
+    const { planId = 'annual_subscription', amount, transactionId = '', notes = '' } = req.body;
+
+    const isMarqueePlan = planId === 'featured_marquee' || planId === 'featured_profile';
+    const isMonthlyPlan = planId === 'monthly_subscription' || planId === 'monthly_premium';
+    const settings = await getSettings();
+
+    let priceInRupees;
+    let planTitle;
+    let planType;
+
+    if (isMarqueePlan) {
+      priceInRupees = Number(amount) || Number(settings?.featuredMarquee?.price ?? 299);
+      planTitle = `Running Bar Profile Promotion (${settings?.featuredMarquee?.durationDays ?? 15} Days)`;
+      planType = 'featured_marquee';
+    } else if (isMonthlyPlan) {
+      priceInRupees = Number(amount) || Number(settings?.monthlySubscriptionPrice ?? 199);
+      planTitle = 'Monthly Premium Membership (30 Days Unlimited)';
+      planType = 'monthly_subscription';
+    } else {
+      priceInRupees = Number(amount) || Number(settings?.subscriptionPrice ?? 999);
+      planTitle = 'Annual Premium Membership (1 Year Unlimited)';
+      planType = 'annual_subscription';
+    }
+
+    const amountInPaise = Math.round(priceInRupees * 100);
+    const orderId = `proof_ord_${(user.nikahId || 'usr').toLowerCase()}_${Date.now().toString(36)}`;
+    const proofScreenshotUrl = `/uploads/media/${req.file.filename}`;
+
+    const payment = await createPayment({
+      userId: user._id,
+      orderId,
+      gateway: 'manual_qr',
+      amount: amountInPaise,
+      currency: 'INR',
+      status: 'pending',
+      planName: planTitle,
+      planType,
+      proofScreenshot: proofScreenshotUrl,
+      transactionId: String(transactionId || '').trim(),
+      notes: String(notes || '').trim(),
+      userSnapshot: {
+        fullName: user.fullName,
+        nikahId: user.nikahId,
+        phone: user.phone,
+        email: user.email,
+        district: user.district,
+      },
+      receipt: `rcpt_proof_${Date.now()}`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Alhamdulillah! Payment proof submitted successfully. Admin will verify and activate your feature shortly.',
+      payment,
+      orderId,
+      planTitle,
+      amount: priceInRupees,
+    });
+  } catch (err) {
+    console.error('[Submit Payment Proof Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to submit payment proof.',
+    });
+  }
+};
+
+/**
+ * Get current user's submitted payment proofs
+ * GET /api/payment/my-proofs
+ */
+export const getUserPaymentProofs = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const payments = await findPayments({ userId: user._id });
+    const proofs = payments.filter((p) => p.gateway === 'manual_qr' || p.proofScreenshot);
+
+    res.json({
+      success: true,
+      proofs,
+      latestPendingProof: proofs.find((p) => p.status === 'pending') || null,
+    });
+  } catch (err) {
+    console.error('[Get User Proofs Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve payment proofs.',
+    });
   }
 };

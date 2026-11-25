@@ -34,7 +34,7 @@ const paymentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['created', 'processing', 'pending', 'captured', 'rejected', 'failed'],
+      enum: ['created', 'captured', 'failed', 'pending', 'approved', 'rejected'],
       default: 'created',
       index: true,
     },
@@ -42,7 +42,38 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       default: 'Premium Annual Membership',
     },
-    zohoPaymentId: {
+    planType: {
+      type: String,
+      index: true,
+    },
+    proofScreenshot: {
+      type: String,
+    },
+    transactionId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    notes: {
+      type: String,
+    },
+    rejectionReason: {
+      type: String,
+    },
+    userSnapshot: {
+      fullName: String,
+      nikahId: String,
+      phone: String,
+      email: String,
+      district: String,
+    },
+    verifiedBy: {
+      type: String,
+    },
+    verifiedAt: {
+      type: Date,
+    },
+    receipt: {
       type: String,
     },
     referenceNumber: {

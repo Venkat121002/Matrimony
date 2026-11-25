@@ -49,10 +49,34 @@ export const updatePayment = async (payment, patch) => {
   return payment;
 };
 
+export const getPaymentById = async (id) => {
+  if (!id || typeof id !== 'string' || id.includes('/')) return null;
+  return fromDoc(await paymentsCol.doc(id).get());
+};
+
+export const findPayments = async (filter = {}) => {
+  let query = paymentsCol;
+  if (filter.status) {
+    query = query.where('status', '==', filter.status);
+  }
+  const snap = await query.get();
+  const list = snap.docs.map(fromDoc);
+  list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  return list;
+};
+
 export const totalCapturedPaise = async () => {
-  const agg = await paymentsCol
-    .where('status', '==', 'captured')
-    .aggregate({ total: AggregateField.sum('amount') })
-    .get();
-  return agg.data().total || 0;
+  const [capturedAgg, approvedAgg] = await Promise.all([
+    paymentsCol
+      .where('status', '==', 'captured')
+      .aggregate({ total: AggregateField.sum('amount') })
+      .get()
+      .catch(() => ({ data: () => ({ total: 0 }) })),
+    paymentsCol
+      .where('status', '==', 'approved')
+      .aggregate({ total: AggregateField.sum('amount') })
+      .get()
+      .catch(() => ({ data: () => ({ total: 0 }) })),
+  ]);
+  return (capturedAgg.data().total || 0) + (approvedAgg.data().total || 0);
 };

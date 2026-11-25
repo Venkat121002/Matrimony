@@ -160,8 +160,17 @@ export const sendVerificationStatusEmail = async (user, isApproved, rejectionRea
  * 3. Payment Receipt / Premium Activation Email
  */
 export const sendPaymentReceiptEmail = async (user, payment) => {
-  const subject = `Payment Confirmed - Premium Nikah Membership Activated (ID: ${user.nikahId})`;
-  const text = `Assalamu Alaikum ${user.fullName}, Thank you for your payment of ₹${(payment.amount / 100).toFixed(2)}. Your Premium Annual Membership is now active with unlimited profile views!`;
+  const isMarquee = payment.planId === 'featured_marquee';
+  const planName = payment.planName || 'Premium Membership';
+  const validTill = payment.expiresAt
+    ? new Date(payment.expiresAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })
+    : null;
+  const subject = isMarquee
+    ? `Payment Confirmed - Your Profile Is Now Featured (ID: ${user.nikahId})`
+    : `Payment Confirmed - Premium Nikah Membership Activated (ID: ${user.nikahId})`;
+  const text = isMarquee
+    ? `Assalamu Alaikum ${user.fullName}, we have verified your payment of ₹${(payment.amount / 100).toFixed(2)}. Your profile is now featured in the Running Marquee Bar${validTill ? ` until ${validTill}` : ''}.`
+    : `Assalamu Alaikum ${user.fullName}, we have verified your payment of ₹${(payment.amount / 100).toFixed(2)}. Your ${planName} is now active${validTill ? ` until ${validTill}` : ''} with unlimited profile views!`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf7ef; border: 2px solid #caa85d; border-radius: 12px; overflow: hidden;">
@@ -171,12 +180,14 @@ export const sendPaymentReceiptEmail = async (user, payment) => {
       </div>
       <div style="padding: 30px; color: #2e261a; line-height: 1.6;">
         <h2 style="color: #163828; margin-top: 0;">Jazakallahu Khair, ${user.fullName}!</h2>
-        <p>We have successfully received your membership payment. Your account has been upgraded to <strong>Premium Membership</strong>.</p>
+        <p>We have verified your payment. ${isMarquee
+          ? 'Your profile is now featured in the <strong>Running Marquee Bar</strong>.'
+          : 'Your account has been upgraded to <strong>Premium Membership</strong>.'}</p>
         
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #f7f1e1; border-radius: 8px; overflow: hidden;">
           <tr style="border-bottom: 1px solid #dfd2ba;">
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Plan</td>
-            <td style="padding: 12px 15px; color: #2e261a;">${payment.planName || 'Annual Premium Membership'}</td>
+            <td style="padding: 12px 15px; color: #2e261a;">${planName}</td>
           </tr>
           <tr style="border-bottom: 1px solid #dfd2ba;">
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Amount Paid</td>
@@ -184,19 +195,21 @@ export const sendPaymentReceiptEmail = async (user, payment) => {
           </tr>
           <tr style="border-bottom: 1px solid #dfd2ba;">
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Order ID</td>
-            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.orderId || payment.cashfreeOrderId || payment.razorpayOrderId}</td>
+            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.orderId}</td>
           </tr>
-          <tr style="border-bottom: 1px solid #dfd2ba;">
-            <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Payment ID</td>
-            <td style="padding: 12px 15px; font-family: monospace; font-size: 12px;">${payment.paymentId || payment.cashfreePaymentId || payment.razorpayPaymentId || 'N/A'}</td>
-          </tr>
+          ${validTill ? `<tr style="border-bottom: 1px solid #dfd2ba;">
+            <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Valid Until</td>
+            <td style="padding: 12px 15px; color: #2e261a;">${validTill}</td>
+          </tr>` : ''}
           <tr>
             <td style="padding: 12px 15px; font-weight: bold; color: #163828;">Benefits</td>
-            <td style="padding: 12px 15px; color: #163828; font-weight: bold;">Unlimited Profile Views & Direct Family Contacts</td>
+            <td style="padding: 12px 15px; color: #163828; font-weight: bold;">${isMarquee ? 'Top Running Bar Visibility' : 'Unlimited Profile Views & Direct Family Contacts'}</td>
           </tr>
         </table>
 
-        <p style="font-size: 14px;">You can now view detailed family information, contact numbers, and horoscopes/preferences without any monthly limits.</p>
+        <p style="font-size: 14px;">${isMarquee
+          ? 'Your biodata now scrolls across the top banner of the website.'
+          : 'You can now view detailed family information, contact numbers, and horoscopes/preferences without any monthly limits.'}</p>
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
           Need support? Our customer care is available at <strong>+91 9344511158</strong>.

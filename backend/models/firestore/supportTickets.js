@@ -1,7 +1,7 @@
-import { db, fromDoc, toData } from '../../config/firebase.js';
+import { tenantCol, fromDoc, toData } from '../../config/firebase.js';
 
 /** Firestore `supportTickets` collection. */
-const ticketsCol = db.collection('supportTickets');
+const ticketsCol = tenantCol('supportTickets');
 
 export const createTicket = async (fields) => {
   const now = new Date();

@@ -215,40 +215,25 @@ async function runTests() {
     assert(false, `Chosen profiles limit test failed: ${e.message}`);
   }
 
-  // 8. Cashfree Payment: Create Order & Upgrade to Premium
+  // 8. Premium upgrade. The Zoho Payments checkout itself is covered by test_zoho_payments.js
+  //    (stubbed Zoho API); here the admin grants Premium so the benefit checks below can run.
   try {
-    console.log(`\nTesting Cashfree Order Creation and Premium Upgrade...`);
-    const orderRes = await fetch(`${API_BASE}/payment/create-order`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userToken}`,
-      },
-      body: JSON.stringify({ planId: 'annual_premium' }),
+    console.log(`
+Granting Premium (admin) for benefit checks...`);
+    const grantRes = await fetch(`${API_BASE}/admin/users/${registeredUser._id}/subscription`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({ subscriptionStatus: 'premium', days: 365 }),
     }).then((r) => r.json());
+    assert(grantRes.success === true, 'Admin grants Premium Membership');
 
-    assert(orderRes.success === true, 'Cashfree order created successfully');
-    assert(orderRes.amount === 99900, 'Order amount is ₹999 (99900 paise)');
+    const oldFlow = await fetch(`${API_BASE}/payment/submit-proof`, { method: 'POST', headers: { Authorization: `Bearer ${userToken}` } });
+    assert(oldFlow.status === 404, 'Retired manual UPI screenshot endpoint is gone');
 
-    // Verify payment and upgrade user
-    const verifyRes = await fetch(`${API_BASE}/payment/verify-payment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userToken}`,
-      },
-      body: JSON.stringify({
-        razorpayOrderId: orderRes.orderId,
-        razorpayPaymentId: `pay_test_${Date.now()}`,
-        razorpaySignature: 'demo_verified_signature',
-      }),
-    }).then((r) => r.json());
-
-    assert(verifyRes.success === true, 'Payment verified successfully');
-    assert(verifyRes.subscriptionStatus === 'premium', 'User upgraded to Premium Membership');
-    assert(verifyRes.user.subscriptionStatus === 'premium', 'Upgraded user object returned in verify response');
+    const meRes = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${userToken}` } }).then((r) => r.json());
+    assert((meRes.user || meRes).subscriptionStatus === 'premium', 'Member account reflects Premium');
   } catch (e) {
-    assert(false, `Payment upgrade failed: ${e.message}`);
+    assert(false, `Premium upgrade failed: ${e.message}`);
   }
 
   // 9. Premium Benefits Verification:
@@ -322,20 +307,10 @@ async function runTests() {
     assert(brideReg.success === true, 'Test Bride account registered');
 
     // Upgrade Bride to Premium
-    const brideOrder = await fetch(`${API_BASE}/payment/create-order`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${brideReg.token}` },
-      body: JSON.stringify({ planId: 'annual_premium' }),
-    }).then((r) => r.json());
-
-    await fetch(`${API_BASE}/payment/verify-payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${brideReg.token}` },
-      body: JSON.stringify({
-        razorpayOrderId: brideOrder.orderId,
-        razorpayPaymentId: `pay_test_${Date.now()}`,
-        razorpaySignature: 'demo_verified_signature',
-      }),
+    await fetch(`${API_BASE}/admin/users/${brideReg.user._id}/subscription`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+      body: JSON.stringify({ subscriptionStatus: 'premium', days: 365 }),
     });
 
     // B. Now a new suitable Groom joins (Age 27, Never married)

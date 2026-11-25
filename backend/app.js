@@ -5,8 +5,8 @@ import profileRoutes from './routes/profileRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
-import { handleWebhook } from './controllers/paymentController.js';
 import { streamStoredFile } from './middleware/uploadMiddleware.js';
+import { zohoWebhook } from './controllers/paymentController.js';
 
 const app = express();
 
@@ -18,17 +18,9 @@ app.use(
   })
 );
 
-// Cashfree & Razorpay Webhook routes (capture raw body for signature verification)
-app.post(
-  '/api/webhooks/cashfree',
-  express.raw({ type: 'application/json' }),
-  handleWebhook
-);
-app.post(
-  '/api/webhooks/razorpay',
-  express.raw({ type: 'application/json' }),
-  handleWebhook
-);
+// Zoho Payments webhook: the signature covers the exact raw bytes, so this route must be
+// registered before express.json(). (On Cloud Functions req.rawBody is also available.)
+app.post('/api/payment/zoho/webhook', express.raw({ type: '*/*', limit: '1mb' }), zohoWebhook);
 
 // Standard JSON and URL-encoded body parser with UTF-8 character support
 app.use(express.json({ limit: '10mb' }));

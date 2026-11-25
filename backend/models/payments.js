@@ -3,4 +3,11 @@ import { isFirestore } from '../config/database.js';
 
 const driver = await import(isFirestore ? './firestore/payments.js' : './mongo/payments.js');
 
-export const { createPayment, getPaymentByOrderId, updatePayment, totalCapturedPaise } = driver;
+export const {
+  createPayment,
+  getPaymentByOrderId,
+  getPaymentById,
+  updatePayment,
+  totalCapturedPaise,
+  findPayments,
+} = driver;

@@ -5,9 +5,6 @@ import { useLanguage } from '../context/LanguageContext';
 export default function Header({
   onOpenContact,
   currentUser,
-  onOpenLogin,
-  onOpenRegister,
-  onOpenOverseasRegister,
   onOpenAdmin,
   onOpenUpgrade,
   onOpenSupport,
@@ -69,11 +66,11 @@ export default function Header({
       </div>
 
       {/* Top Banner with Islamic Green & Gold Motif */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 pb-3 sm:pb-4 pt-1 flex items-center justify-between gap-3 sm:gap-6 relative">
+      <div className={`max-w-6xl mx-auto px-2 sm:px-4 pb-3 sm:pb-4 pt-1 flex items-center gap-3 sm:gap-6 relative ${currentUser ? 'justify-between' : 'justify-center'}`}>
         {/* Left: Website Logo Emblem & Straight-Line Title */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+        <div className={`flex items-center min-w-0 ${currentUser ? 'gap-2.5 sm:gap-3.5' : 'flex-col sm:flex-row gap-2 sm:gap-6'}`}>
           <div
-            className="relative w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-22 lg:h-22 flex-shrink-0 flex items-center justify-center p-0.5 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] shadow-xl border-2 border-[#e6d08f] cursor-pointer overflow-hidden transition-transform duration-200 hover:scale-105"
+            className={`relative flex-shrink-0 ${currentUser ? 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20' : 'w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32'} flex items-center justify-center p-0.5 rounded-full bg-gradient-to-b from-[#caa85d] via-[#f7e4a8] to-[#74551c] shadow-xl border-2 border-[#e6d08f] cursor-pointer overflow-hidden transition-transform duration-200 hover:scale-105`}
             onClick={() => { window.location.href = '/'; }}
             title="Tamil Muslim Nikkah"
           >
@@ -85,9 +82,9 @@ export default function Header({
           </div>
 
           {/* Site Title (straight line) and Tagline (wraps gracefully) */}
-          <div className="min-w-0">
+          <div className={`min-w-0 ${currentUser ? '' : 'text-center sm:text-left'}`}>
             <h1
-              className="font-cinzel text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-[32px] font-extrabold tracking-wide uppercase cursor-pointer whitespace-nowrap select-none"
+              className={`font-cinzel font-extrabold tracking-wide uppercase cursor-pointer whitespace-nowrap select-none leading-tight ${currentUser ? 'text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-[32px]' : 'text-[clamp(1.25rem,5.4vw,3rem)] sm:text-[clamp(1.5rem,4.8vw,3.75rem)]'}`}
               style={{
                 background: 'linear-gradient(180deg, #fff7d6 0%, #ecd08c 30%, #caa146 70%, #906f23 100%)',
                 WebkitBackgroundClip: 'text',
@@ -100,7 +97,7 @@ export default function Header({
             >
               Tamil Muslim Nikkah
             </h1>
-            <p className="text-[#ecd08c] font-tamil text-[10px] xs:text-[11px] sm:text-xs md:text-sm font-medium mt-0.5 tracking-normal drop-shadow leading-tight sm:leading-snug max-w-[210px] xs:max-w-[260px] sm:max-w-sm md:max-w-md break-words">
+            <p className={`text-[#ecd08c] font-tamil font-medium mt-0.5 tracking-normal drop-shadow leading-tight sm:leading-snug break-words ${currentUser ? 'text-[10px] xs:text-[11px] sm:text-xs md:text-sm max-w-[210px] xs:max-w-[260px] sm:max-w-sm md:max-w-md lg:max-w-none lg:whitespace-nowrap' : 'whitespace-nowrap text-[clamp(0.5rem,2.25vw,1rem)] sm:text-[clamp(0.7rem,1.9vw,1.5rem)]'}`}>
               {t('tagline')}
             </p>
           </div>
@@ -149,45 +146,11 @@ export default function Header({
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onOpenLogin}
-                className="px-3 py-1.5 rounded-md btn-gold font-bold shadow text-xs cursor-pointer hover:brightness-105 whitespace-nowrap"
-              >
-                {t('loginBtn')}
-              </button>
-              <button
-                type="button"
-                onClick={onOpenRegister}
-                className="px-3 py-1.5 rounded-md bg-[#25583f] hover:bg-[#317051] text-[#fff7d6] border border-[#caa85d] font-bold text-xs shadow cursor-pointer whitespace-nowrap"
-              >
-                {isTamil ? 'பதிவு' : 'Register'}
-              </button>
-              {onOpenOverseasRegister && (
-                <button
-                  type="button"
-                  onClick={onOpenOverseasRegister}
-                  className="px-2.5 py-1.5 rounded-md bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-200 font-extrabold text-xs shadow flex items-center gap-1 transition-transform hover:scale-105 cursor-pointer whitespace-nowrap"
-                  title={isTamil ? 'வெளிநாட்டு வரன்களுக்கான தனி பதிவு' : 'Register for Foreign / Overseas candidates'}
-                >
-                  <span>🌍</span>
-                  <span>{isTamil ? 'வெளிநாட்டு வரன் பதிவு' : 'Overseas Register'}</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onOpenSupport}
-                className="px-2.5 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[#edd48e] border border-[#caa85d]/50 font-bold text-xs cursor-pointer whitespace-nowrap"
-              >
-                {isTamil ? 'உதவி மையம்' : 'Help Desk'}
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
 
         {/* Mobile: Hamburger Bar Button in the right corner */}
+        {currentUser && (
         <div className="md:hidden flex items-center flex-shrink-0 relative" ref={mobileMenuRef}>
           <button
             type="button"
@@ -256,63 +219,11 @@ export default function Header({
                     <span>{isTamil ? 'வெளியேறு' : 'Logout'}</span>
                   </button>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2 pt-1">
-                  {/* Login Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenLogin && onOpenLogin();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-lg btn-gold font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-transform active:scale-98 cursor-pointer"
-                  >
-                    <span>{t('loginBtn')}</span>
-                  </button>
-
-                  {/* Register Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenRegister && onOpenRegister();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-lg bg-[#25583f] hover:bg-[#317051] text-[#fff7d6] border border-[#caa85d] font-bold text-xs flex items-center justify-center gap-2 shadow transition-transform active:scale-98 cursor-pointer"
-                  >
-                    <span>{isTamil ? 'இலவச பதிவு (Register)' : 'Register'}</span>
-                  </button>
-
-                  {/* Overseas Register Button */}
-                  {onOpenOverseasRegister && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenOverseasRegister();
-                      }}
-                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-300 text-gray-950 border border-amber-200 font-extrabold text-xs shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-98 cursor-pointer"
-                    >
-                      <span>🌍</span>
-                      <span>{isTamil ? 'வெளிநாட்டு குடியுரிமை வரன் பதிவு' : 'Overseas Register'}</span>
-                    </button>
-                  )}
-
-                  {/* Help Desk Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenSupport && onOpenSupport();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-[#edd48e] border border-[#caa85d]/50 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <span>{isTamil ? 'உதவி மையம்' : 'Help Desk'}</span>
-                  </button>
-                </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Bottom Gold Strip */}

@@ -8,6 +8,7 @@ import { saveFile, streamFile, deleteFile } from '../services/fileStorage.js';
  * (Cloud Storage in production, backend/uploads/ locally):
  *   media/<file>  -> public photos / audio clips, served at /uploads/media/<file>
  *   kyc/<file>    -> private identity documents, only streamed to admins
+ *   payments/<file> -> private payment screenshots, only streamed to admins
  */
 
 // Cloud Functions has already read the request body into req.rawBody, so multer's
@@ -105,6 +106,35 @@ export const uploadMedia = [
     { name: 'kycDocument', maxCount: 1 },
   ]),
   persist('media', mediaFilename),
+];
+
+const proofFilename = (file) => {
+  let ext = path.extname(file.originalname || '').toLowerCase();
+  if (!ext) {
+    if (file.mimetype.includes('png')) ext = '.png';
+    else if (file.mimetype.includes('webp')) ext = '.webp';
+    else if (file.mimetype.includes('pdf')) ext = '.pdf';
+    else ext = '.jpg';
+  }
+  return `proof-${uniqueSuffix()}${ext}`;
+};
+
+export const uploadPaymentProof = [
+  rawBodyShim,
+  multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      if (file.mimetype.startsWith('image/') || allowedExts.includes(ext) || file.mimetype === 'application/pdf') {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid screenshot file format. Please upload a valid image (JPG, PNG, WEBP) or PDF proof.'), false);
+      }
+    },
+  }).single('screenshot'),
+  persist('media', proofFilename),
 ];
 
 // Stream a stored file to the response; returns false if it does not exist.

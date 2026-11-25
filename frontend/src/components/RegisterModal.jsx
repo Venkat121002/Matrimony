@@ -2326,6 +2326,17 @@ export default function RegisterModal({
                 </p>
               </div>
             </label>
+            <p className="text-[11px] sm:text-xs text-[#5a4720] pl-7">
+              {isTamil ? 'பதிவு செய்வதன் மூலம் எங்கள் ' : 'By registering you also agree to our '}
+              <a href="/terms-conditions" target="_blank" rel="noopener noreferrer" className="font-bold underline text-[#163828]">
+                {isTamil ? 'விதிமுறைகள் & நிபந்தனைகள்' : 'Terms & Conditions'}
+              </a>
+              {isTamil ? ' மற்றும் ' : ' and '}
+              <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="font-bold underline text-[#163828]">
+                {isTamil ? 'தனியுரிமைக் கொள்கை' : 'Privacy Policy'}
+              </a>
+              {isTamil ? ' ஆகியவற்றை ஏற்றுக்கொள்கிறீர்கள்.' : '.'}
+            </p>
           </div>
 
           {/* 12. SUBMIT BUTTON (Single Page Registration Final Action) */}

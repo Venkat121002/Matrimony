@@ -20,6 +20,3 @@ export const getAdminCreds = () => ({
   adminUser: process.env.ADMIN_USERNAME || 'admin',
   adminPass: required('ADMIN_PASSWORD', 'Admin@TamilNikah2026!'),
 });
-
-// Demo payment shortcuts (fake orders / 'demo_verified_signature') only outside production.
-export const allowDemoPayments = () => !isProd() || process.env.ALLOW_DEMO_PAYMENTS === 'true';

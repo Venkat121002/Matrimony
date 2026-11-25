@@ -1,41 +1,79 @@
 import crypto from 'crypto';
-import { createPayment, getPaymentByOrderId, updatePayment } from '../models/payments.js';
+import { createPayment, getPaymentByOrderId, updatePayment, findPayments } from '../models/payments.js';
 import { getUserById, updateUser } from '../models/users.js';
 import { getSettings } from '../models/settings.js';
-import { allowDemoPayments } from '../config/secrets.js';
+import { resolvePlan, applyPlanToUser, isPremiumActive, isFeaturedActive } from '../services/subscriptionService.js';
+import {
+  isZohoConfigured,
+  widgetConfig,
+  createPaymentSession,
+  getPaymentSession,
+  succeededPayment,
+  verifyWebhookSignature,
+} from '../services/zohoPayments.js';
 import { sendPaymentReceiptEmail } from '../services/emailService.js';
 
-// Cashfree Gateway Configuration Helpers
-const getCashfreeAppId = () => process.env.CASHFREE_APP_ID || 'TEST11280313ce66e1bc01697be8041e31308211';
-const getCashfreeSecretKey = () => process.env.CASHFREE_SECRET_KEY || process.env.CASHFREE_APP_ID || 'TEST11280313ce66e1bc01697be8041e31308211';
-const getCashfreeEnv = () => (process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox');
-const getCashfreeApiVersion = () => process.env.CASHFREE_API_VERSION || '2023-08-01';
-const getCashfreeBaseUrl = () =>
-  getCashfreeEnv() === 'production' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
+/**
+ * Activate the plan for a Zoho payment exactly once.
+ * Only called after Zoho itself (Retrieve Session API or a signed webhook) reported success.
+ * Returns { applied, payment, expiresAt? }.
+ */
+const capturePayment = async (payment, zohoPaymentId) => {
+  if (!(await claimPaymentForCapture(payment.orderId))) {
+    // Someone else (webhook vs. browser confirmation) already handled it.
+    return { applied: false, payment: await getPaymentByOrderId(payment.orderId) };
+  }
+  try {
+    const user = await getUserById(String(payment.userId));
+    if (!user) throw new Error(`Member ${payment.userId} no longer exists`);
+    const plan = resolvePlan(payment.planId, await getSettings());
+    if (!plan) throw new Error(`Unknown plan ${payment.planId}`);
+
+    const expiresAt = await applyPlanToUser(user, plan, plan.days);
+    await updatePayment(payment, {
+      status: 'captured',
+      zohoPaymentId: zohoPaymentId || '',
+      capturedAt: new Date(),
+      expiresAt,
+    });
+
+    sendPaymentReceiptEmail(user, { ...payment, planName: plan.title, expiresAt }).catch((err) =>
+      console.error('[Email Worker] Payment receipt error:', err.message)
+    );
+    return { applied: true, payment, user, expiresAt };
+  } catch (err) {
+    // Release the claim so a retry (webhook redelivery / member refresh) can finish the job.
+    await updatePayment(payment, { status: 'failed', failureReason: err.message.slice(0, 300) }).catch(() => {});
+    throw err;
+  }
+};
+
+// Zoho reports amounts in rupees ("999.00"); we store paise.
+const amountMatches = (payment, zohoAmount) => Math.round(Number(zohoAmount) * 100) === payment.amount;
 
 /**
- * Create Cashfree Payment Order
- * POST /api/payment/create-order
+ * Start a Zoho Payments checkout for a plan.
+ * POST /api/payment/create-session   body: { planId }
  */
-export const createOrder = async (req, res) => {
+export const createSession = async (req, res) => {
   try {
     const user = req.user;
-    const { planId = 'annual_premium' } = req.body;
+    if (!isZohoConfigured()) {
+      return res.status(503).json({ success: false, message: 'Online payments are not available right now. Please try again later.' });
+    }
 
-    const isMarqueePlan = planId === 'featured_marquee';
-    const isMonthlyPlan = planId === 'monthly_premium';
-    const settings = await getSettings();
-
-    // Prevent double subscription or double marquee payment
-    if (!isMarqueePlan && user.subscriptionStatus === 'premium' && user.premiumExpiresAt && new Date(user.premiumExpiresAt) > new Date()) {
+    const plan = resolvePlan(req.body.planId, await getSettings());
+    if (!plan || !(plan.priceInRupees > 0)) {
+      return res.status(400).json({ success: false, message: 'Please choose a valid plan.' });
+    }
+    if (plan.kind === 'premium' && isPremiumActive(user)) {
       return res.status(400).json({
         success: false,
         message: 'You already have an active Premium Membership subscription.',
         alreadySubscribed: true,
       });
     }
-
-    if (isMarqueePlan && user.isFeatured && user.featuredUntil && new Date(user.featuredUntil) > new Date()) {
+    if (plan.kind === 'marquee' && isFeaturedActive(user)) {
       return res.status(400).json({
         success: false,
         message: 'Your profile is already featured in the Running Marquee Bar.',
@@ -43,350 +81,257 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    let priceInRupees;
-    let planTitle;
-
-    if (isMarqueePlan) {
-      priceInRupees = Number(settings?.featuredMarquee?.price ?? 299);
-      planTitle = `Running Bar Profile Promotion (${settings?.featuredMarquee?.durationDays ?? 15} Days)`;
-    } else if (isMonthlyPlan) {
-      priceInRupees = Number(settings?.monthlySubscriptionPrice ?? 199);
-      planTitle = 'Monthly Premium Membership (30 Days Unlimited)';
-    } else {
-      priceInRupees = Number(settings?.subscriptionPrice ?? 999);
-      planTitle = 'Annual Premium Membership (1 Year Unlimited)';
-    }
-
-    const amountInPaise = priceInRupees * 100;
-    const receipt = `rcpt_${user.nikahId || 'usr'}_${Date.now()}`;
-    const orderId = `cf_ord_${(user.nikahId || 'usr').toLowerCase()}_${Date.now().toString(36)}`;
-
-    // Prepare clean customer details for Cashfree PG
-    const cleanPhone = (user.phone || '9999999999').replace(/[^0-9]/g, '').slice(-10).padStart(10, '9');
-    const customerId = String(user._id || user.nikahId || 'user_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 45);
-
-    const appId = getCashfreeAppId();
-    const secretKey = getCashfreeSecretKey();
-    const apiVersion = getCashfreeApiVersion();
-    const baseUrl = getCashfreeBaseUrl();
-
-    let orderData;
-
-    try {
-      const cfResponse = await fetch(`${baseUrl}/orders`, {
-        method: 'POST',
-        headers: {
-          'x-client-id': appId,
-          'x-client-secret': secretKey,
-          'x-api-version': apiVersion,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          order_id: orderId,
-          order_amount: priceInRupees,
-          order_currency: 'INR',
-          customer_details: {
-            customer_id: customerId,
-            customer_name: user.fullName || 'User',
-            customer_email: user.email || 'user@tamilnikah.com',
-            customer_phone: cleanPhone,
-          },
-          order_meta: {
-            return_url: `${req.headers.origin || 'http://localhost:5173'}/?order_id={order_id}`,
-            payment_methods: 'cc,dc,upi,nb',
-          },
-          order_note: planTitle,
-        }),
-      });
-
-      const cfJson = await cfResponse.json();
-
-      if (!cfResponse.ok || !cfJson.payment_session_id) {
-        throw new Error(cfJson.message || `Cashfree API returned ${cfResponse.status}`);
-      }
-
-      orderData = {
-        orderId: cfJson.order_id,
-        paymentSessionId: cfJson.payment_session_id,
-        amount: cfJson.order_amount,
-        currency: cfJson.order_currency || 'INR',
-      };
-    } catch (cfErr) {
-      console.error('[Cashfree Gateway Error]:', cfErr.message);
-      return res.status(502).json({
-        success: false,
-        message: 'Could not connect to Cashfree payment gateway. Please check gateway credentials or try again later.',
-      });
-    }
-
-    // Persist Payment record
-    await createPayment({
-      userId: user._id,
-      orderId: orderData.orderId,
-      cashfreeOrderId: orderData.orderId,
-      paymentSessionId: orderData.paymentSessionId,
-      razorpayOrderId: orderData.orderId, // backward-compat with any legacy queries
-      gateway: 'cashfree',
-      amount: amountInPaise,
-      currency: 'INR',
-      status: 'created',
-      planName: planTitle,
-      receipt,
+    const referenceNumber = `TMN-${user.nikahId}-${Date.now().toString(36)}`.toUpperCase();
+    const session = await createPaymentSession({
+      amountInRupees: plan.priceInRupees,
+      description: plan.title,
+      referenceNumber,
+      metaData: { userId: user._id, nikahId: user.nikahId, planId: plan.planId },
     });
 
+    await createPayment({
+      orderId: session.payments_session_id,
+      userId: String(user._id),
+      gateway: 'zoho',
+      planId: plan.planId,
+      planName: plan.title,
+      amount: Math.round(plan.priceInRupees * 100),
+      currency: 'INR',
+      status: 'created',
+      referenceNumber,
+    });
+
+    const { accountId, apiKey } = widgetConfig();
     res.json({
       success: true,
-      orderId: orderData.orderId,
-      paymentSessionId: orderData.paymentSessionId,
-      amount: amountInPaise,
-      amountInRupees: priceInRupees,
+      paymentsSessionId: session.payments_session_id,
+      amount: plan.priceInRupees,
       currency: 'INR',
-      appId,
-      environment: getCashfreeEnv(),
-      planId,
-      user: {
-        name: user.fullName,
-        email: user.email,
-        phone: user.phone,
+      description: plan.title,
+      referenceNumber,
+      accountId,
+      apiKey,
+      prefill: {
+        name: user.fullNameEn || user.fullName || '',
+        // Placeholder logins (no real email) end in these domains — don't prefill them
+        email: user.email && !/@(tamilnikah\.com|matrimony\.)/i.test(String(user.email)) ? user.email : '',
+        phone: user.phone || '',
       },
     });
   } catch (err) {
-    console.error('[Create Order Error]:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create payment order.',
-    });
+    console.error('[Zoho Create Session Error]:', err.message, err.zoho || '');
+    // Zoho account not yet activated for collections (KYC/activation pending on Zoho's side)
+    if (err.zoho?.code === 'payments_not_enabled') {
+      return res.status(503).json({
+        success: false,
+        message: 'Online payments are being activated and will be available soon. Please try again later.',
+      });
+    }
+    res.status(502).json({ success: false, message: 'Could not start the payment. Please try again.' });
   }
 };
 
 /**
- * Verify Cashfree Payment (Client Callback Endpoint)
- * POST /api/payment/verify-payment
+ * Called by the browser after the Zoho widget reports success. Never trusts the browser:
+ * the session status is re-read from Zoho before the plan is activated.
+ * POST /api/payment/confirm   body: { paymentsSessionId }
  */
-export const verifyPayment = async (req, res) => {
+export const confirmPayment = async (req, res) => {
   try {
-    const {
-      orderId,
-      order_id,
-      cashfreeOrderId,
-      razorpayOrderId,
-      paymentId,
-      payment_id,
-      razorpayPaymentId,
-      paymentSessionId,
-    } = req.body;
-
-    const user = req.user;
-    const targetOrderId = orderId || order_id || cashfreeOrderId || razorpayOrderId;
-
-    if (!targetOrderId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order ID is required for verification.',
-      });
+    const sessionId = String(req.body.paymentsSessionId || '');
+    const payment = await getPaymentByOrderId(sessionId);
+    if (!payment || payment.gateway !== 'zoho' || String(payment.userId) !== String(req.user._id)) {
+      return res.status(404).json({ success: false, message: 'Payment not found.' });
     }
 
-    const payment = await getPaymentByOrderId(targetOrderId);
-
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Payment order record not found.',
-      });
-    }
-
-    if (payment && payment.userId.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized payment verification attempt.',
-      });
-    }
-
-    let isAuthentic = false;
-    let verifiedPaymentId = paymentId || payment_id || razorpayPaymentId || `cf_pay_${Date.now()}`;
-
-    // Query Cashfree Server-to-Server Order Status
-    const appId = getCashfreeAppId();
-    const secretKey = getCashfreeSecretKey();
-    const apiVersion = getCashfreeApiVersion();
-    const baseUrl = getCashfreeBaseUrl();
-
-    try {
-      const cfCheck = await fetch(`${baseUrl}/orders/${encodeURIComponent(targetOrderId)}`, {
-        method: 'GET',
-        headers: {
-          'x-client-id': appId,
-          'x-client-secret': secretKey,
-          'x-api-version': apiVersion,
-        },
-      });
-
-      if (cfCheck.ok) {
-        const cfOrder = await cfCheck.json();
-        if (cfOrder.order_status === 'PAID') {
-          isAuthentic = true;
-          if (cfOrder.cf_order_id) {
-            verifiedPaymentId = String(cfOrder.cf_order_id);
-          }
-        }
+    if (payment.status !== 'captured') {
+      const session = await getPaymentSession(sessionId);
+      const paid = succeededPayment(session);
+      if (!paid || !amountMatches(payment, session.amount)) {
+        return res.status(402).json({
+          success: false,
+          pending: !paid,
+          message: paid
+            ? 'Payment amount did not match. Please contact support.'
+            : 'We could not confirm your payment yet. If money was debited, your plan will activate automatically within a few minutes.',
+        });
       }
-    } catch (checkErr) {
-      console.error('[Cashfree Verification Check Exception]:', checkErr.message);
+      await capturePayment(payment, paid.payment_id);
     }
 
-    if (!isAuthentic) {
-      return res.status(400).json({
-        success: false,
-        message: 'Payment verification failed: Transaction not completed or unpaid on Cashfree.',
-      });
-    }
-
-    // Update payment record
-    if (payment) {
-      await updatePayment(payment, {
-        paymentId: verifiedPaymentId,
-        cashfreePaymentId: verifiedPaymentId,
-        razorpayPaymentId: verifiedPaymentId,
-        status: 'captured',
-        capturedAt: new Date(),
-      });
-    }
-
-    const isMarqueeOrder =
-      payment?.planName?.includes('Running Bar') ||
-      payment?.planName?.includes('featured_marquee');
-
-    if (isMarqueeOrder) {
-      const settings = await getSettings();
-      const durationDays = Number(settings?.featuredMarquee?.durationDays || 15);
-      const featuredUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
-      await updateUser(user, {
-        isFeatured: true,
-        featuredUntil,
-      });
-
-      return res.json({
-        success: true,
-        message: 'Alhamdulillah! Payment verified and your profile is now featured in the Running Marquee Bar!',
-        isFeatured: true,
-        featuredUntil,
-        user,
-      });
-    }
-
-    // Check if monthly or annual plan
-    const isMonthlyPlan =
-      payment?.planName?.includes('Monthly') ||
-      payment?.planName?.includes('30 Days');
-
-    const durationDays = isMonthlyPlan ? 30 : 365;
-    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
-
-    await updateUser(user, {
-      subscriptionStatus: 'premium',
-      subscriptionPlan: isMonthlyPlan ? 'monthly' : 'annual',
-      premiumExpiresAt: expiresAt,
-      monthlyViewsCount: 0,
-    });
-
-    // Trigger transactional payment confirmation email
-    sendPaymentReceiptEmail(user, payment || {
-      amount: 99900,
-      orderId: targetOrderId,
-      cashfreeOrderId: targetOrderId,
-      paymentId: verifiedPaymentId,
-      planName: 'Annual Premium Membership',
-    }).catch((err) => console.error('[Email Worker] Payment receipt error:', err.message));
-
+    const fresh = await getPaymentByOrderId(sessionId);
+    const user = await getUserById(String(req.user._id));
     res.json({
-      success: true,
-      message: 'Alhamdulillah! Payment verified and Premium membership activated successfully via Cashfree.',
-      subscriptionStatus: user.subscriptionStatus,
-      premiumExpiresAt: user.premiumExpiresAt,
+      success: fresh?.status === 'captured',
+      message: 'Payment successful! Your plan is now active.',
+      planId: fresh?.planId,
+      expiresAt: fresh?.expiresAt || null,
       user,
     });
   } catch (err) {
-    console.error('[Verify Payment Error]:', err);
-    res.status(500).json({
+    console.error('[Zoho Confirm Error]:', err.message, err.zoho || '');
+    res.status(502).json({
       success: false,
-      message: 'Server error verifying payment.',
+      message: 'We could not confirm your payment right now. If money was debited, your plan will activate automatically.',
     });
   }
 };
 
 /**
- * Cashfree & Legacy Webhook Handler
- * POST /api/webhooks/cashfree & POST /api/webhooks/razorpay
+ * Zoho Payments webhook (payment.succeeded / payment.failed).
+ * POST /api/payment/zoho/webhook  — mounted with a raw body parser in app.js.
  */
-export const handleWebhook = async (req, res) => {
+export const zohoWebhook = async (req, res) => {
+  const rawBody = req.rawBody || req.body;
+  if (!verifyWebhookSignature(rawBody, req.headers['x-zoho-webhook-signature'])) {
+    console.warn('[Zoho Webhook] Rejected: invalid signature');
+    return res.status(401).json({ success: false });
+  }
+
+  let event;
   try {
-    const rawBody = req.rawBody || (Buffer.isBuffer(req.body) ? req.body : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body)));
-    const payload = Buffer.isBuffer(req.body) || typeof req.body === 'string' ? JSON.parse(rawBody.toString()) : req.body;
+    event = JSON.parse(Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody));
+  } catch {
+    return res.status(400).json({ success: false });
+  }
 
-    // Cashfree Webhook format
-    if (payload?.type === 'PAYMENT_SUCCESS_WEBHOOK' || payload?.data?.payment?.payment_status === 'SUCCESS') {
-      const orderId = payload.data?.order?.order_id;
-      const paymentId = payload.data?.payment?.cf_payment_id || payload.data?.payment?.payment_id;
-
-      if (orderId) {
-        const payment = await getPaymentByOrderId(orderId);
-        if (payment) {
-          await updatePayment(payment, {
-            paymentId: String(paymentId),
-            cashfreePaymentId: String(paymentId),
-            status: 'captured',
-            capturedAt: new Date(),
-          });
-
-          const user = await getUserById(payment.userId);
-          if (user) {
-            const isMarquee = payment?.planName?.includes('Running Bar') || payment?.planName?.includes('featured_marquee');
-            if (isMarquee) {
-              const settings = await getSettings();
-              const durationDays = Number(settings?.featuredMarquee?.durationDays || 15);
-              await updateUser(user, {
-                isFeatured: true,
-                featuredUntil: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
-              });
-            } else {
-              await updateUser(user, {
-                subscriptionStatus: 'premium',
-                premiumExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-                monthlyViewsCount: 0,
-              });
-              sendPaymentReceiptEmail(user, payment).catch(console.error);
-            }
-          }
-        }
-      }
-      return res.json({ status: 'ok' });
+  try {
+    const zp = event?.event_object?.payment;
+    const payment = zp?.payments_session_id ? await getPaymentByOrderId(String(zp.payments_session_id)) : null;
+    if (!payment || payment.gateway !== 'zoho') {
+      // Not one of ours (e.g. a payment link) — acknowledge so Zoho stops retrying.
+      return res.json({ success: true, ignored: true });
     }
 
-    // Legacy Razorpay Webhook format
-    if (payload?.event === 'payment.captured') {
-      const paymentEntity = payload.payload?.payment?.entity;
-      const orderId = paymentEntity?.order_id;
-      const paymentId = paymentEntity?.id;
-
-      const payment = await getPaymentByOrderId(orderId);
-      if (payment) {
-        await updatePayment(payment, { razorpayPaymentId: paymentId, status: 'captured', capturedAt: new Date() });
-        const user = await getUserById(payment.userId);
-        if (user) {
-          await updateUser(user, {
-            subscriptionStatus: 'premium',
-            premiumExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            monthlyViewsCount: 0,
-          });
-          sendPaymentReceiptEmail(user, payment).catch(console.error);
-        }
+    if (event.event_type === 'payment.succeeded' && payment.status !== 'captured') {
+      // Re-read from Zoho rather than trusting the event body alone.
+      const session = await getPaymentSession(payment.orderId);
+      const paid = succeededPayment(session);
+      if (paid && amountMatches(payment, session.amount)) {
+        await capturePayment(payment, paid.payment_id);
+      } else {
+        console.warn(`[Zoho Webhook] ${payment.orderId}: success event but session not succeeded/amount mismatch`);
       }
-      return res.json({ status: 'ok' });
+    } else if (event.event_type === 'payment.failed' && payment.status === 'created') {
+      await updatePayment(payment, { status: 'failed', failureReason: 'Payment failed at Zoho' });
     }
-
-    res.json({ status: 'ignored' });
+    res.json({ success: true });
   } catch (err) {
-    console.error('[Webhook Error]:', err);
-    res.status(500).json({ error: 'Webhook processing error' });
+    console.error('[Zoho Webhook Error]:', err.message);
+    // 5xx makes Zoho redeliver later.
+    res.status(500).json({ success: false });
+  }
+};
+
+/**
+ * Submit Manual Payment Proof with Screenshot
+ * POST /api/payment/submit-proof
+ */
+export const submitPaymentProof = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Please log in to submit payment proof.' });
+    }
+
+    if (!req.file || !req.file.filename) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment screenshot proof is mandatory. Please upload a clear screenshot of your UPI payment.',
+      });
+    }
+
+    const { planId = 'annual_subscription', amount, transactionId = '', notes = '' } = req.body;
+
+    const isMarqueePlan = planId === 'featured_marquee' || planId === 'featured_profile';
+    const isMonthlyPlan = planId === 'monthly_subscription' || planId === 'monthly_premium';
+    const settings = await getSettings();
+
+    let priceInRupees;
+    let planTitle;
+    let planType;
+
+    if (isMarqueePlan) {
+      priceInRupees = Number(amount) || Number(settings?.featuredMarquee?.price ?? 299);
+      planTitle = `Running Bar Profile Promotion (${settings?.featuredMarquee?.durationDays ?? 15} Days)`;
+      planType = 'featured_marquee';
+    } else if (isMonthlyPlan) {
+      priceInRupees = Number(amount) || Number(settings?.monthlySubscriptionPrice ?? 199);
+      planTitle = 'Monthly Premium Membership (30 Days Unlimited)';
+      planType = 'monthly_subscription';
+    } else {
+      priceInRupees = Number(amount) || Number(settings?.subscriptionPrice ?? 999);
+      planTitle = 'Annual Premium Membership (1 Year Unlimited)';
+      planType = 'annual_subscription';
+    }
+
+    const amountInPaise = Math.round(priceInRupees * 100);
+    const orderId = `proof_ord_${(user.nikahId || 'usr').toLowerCase()}_${Date.now().toString(36)}`;
+    const proofScreenshotUrl = `/uploads/media/${req.file.filename}`;
+
+    const payment = await createPayment({
+      userId: user._id,
+      orderId,
+      gateway: 'manual_qr',
+      amount: amountInPaise,
+      currency: 'INR',
+      status: 'pending',
+      planName: planTitle,
+      planType,
+      proofScreenshot: proofScreenshotUrl,
+      transactionId: String(transactionId || '').trim(),
+      notes: String(notes || '').trim(),
+      userSnapshot: {
+        fullName: user.fullName,
+        nikahId: user.nikahId,
+        phone: user.phone,
+        email: user.email,
+        district: user.district,
+      },
+      receipt: `rcpt_proof_${Date.now()}`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Alhamdulillah! Payment proof submitted successfully. Admin will verify and activate your feature shortly.',
+      payment,
+      orderId,
+      planTitle,
+      amount: priceInRupees,
+    });
+  } catch (err) {
+    console.error('[Submit Payment Proof Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to submit payment proof.',
+    });
+  }
+};
+
+/**
+ * Get current user's submitted payment proofs
+ * GET /api/payment/my-proofs
+ */
+export const getUserPaymentProofs = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const payments = await findPayments({ userId: user._id });
+    const proofs = payments.filter((p) => p.gateway === 'manual_qr' || p.proofScreenshot);
+
+    res.json({
+      success: true,
+      proofs,
+      latestPendingProof: proofs.find((p) => p.status === 'pending') || null,
+    });
+  } catch (err) {
+    console.error('[Get User Proofs Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve payment proofs.',
+    });
   }
 };

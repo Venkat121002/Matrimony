@@ -1,23 +1,45 @@
 import { AggregateField } from 'firebase-admin/firestore';
-import { db, fromDoc, toData } from '../../config/firebase.js';
+import { db, tenantCol, fromDoc, toData } from '../../config/firebase.js';
 
 /**
- * Firestore `payments` collection, keyed by Razorpay order id (unique by construction).
- * Amounts are stored in paise (e.g. 99900 = Rs. 999).
+ * Firestore `payments` collection, keyed by order id (for Zoho: the payments_session_id).
+ * Amounts are stored in paise (e.g. 99900 = Rs. 999). Records from earlier gateways
+ * (Cashfree/Razorpay/manual UPI) stay in place so revenue totals hold.
  */
-const paymentsCol = db.collection('payments');
+const paymentsCol = tenantCol('payments');
 
 export const createPayment = async (fields) => {
   const now = new Date();
-  const orderId = fields.cashfreeOrderId || fields.orderId || fields.razorpayOrderId;
-  const data = { currency: 'INR', status: 'created', planName: 'Premium Annual Membership', gateway: 'cashfree', ...fields, orderId, createdAt: now, updatedAt: now };
-  await paymentsCol.doc(orderId).set(data);
-  return { _id: orderId, ...data };
+  const data = { currency: 'INR', status: 'created', gateway: 'zoho', ...fields, createdAt: now, updatedAt: now };
+  await paymentsCol.doc(data.orderId).set(data);
+  return { _id: data.orderId, ...data };
 };
 
 export const getPaymentByOrderId = async (orderId) => {
   if (!orderId || typeof orderId !== 'string' || orderId.includes('/')) return null;
   return fromDoc(await paymentsCol.doc(orderId).get());
+};
+
+const byCreatedDesc = (a, b) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0);
+
+export const listPaymentsByUser = async (userId) => {
+  if (!userId) return [];
+  const snap = await paymentsCol.where('userId', '==', String(userId)).get();
+  return snap.docs.map(fromDoc).sort(byCreatedDesc);
+};
+
+/**
+ * Atomically move a payment from created/failed to 'processing'. Returns true only for
+ * the caller that won, so the browser confirmation and the webhook can't both apply the plan.
+ */
+export const claimPaymentForCapture = async (orderId) => {
+  const ref = paymentsCol.doc(orderId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || !['created', 'failed'].includes(snap.get('status'))) return false;
+    tx.update(ref, { status: 'processing', updatedAt: new Date() });
+    return true;
+  });
 };
 
 export const updatePayment = async (payment, patch) => {
@@ -27,10 +49,34 @@ export const updatePayment = async (payment, patch) => {
   return payment;
 };
 
+export const getPaymentById = async (id) => {
+  if (!id || typeof id !== 'string' || id.includes('/')) return null;
+  return fromDoc(await paymentsCol.doc(id).get());
+};
+
+export const findPayments = async (filter = {}) => {
+  let query = paymentsCol;
+  if (filter.status) {
+    query = query.where('status', '==', filter.status);
+  }
+  const snap = await query.get();
+  const list = snap.docs.map(fromDoc);
+  list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  return list;
+};
+
 export const totalCapturedPaise = async () => {
-  const agg = await paymentsCol
-    .where('status', '==', 'captured')
-    .aggregate({ total: AggregateField.sum('amount') })
-    .get();
-  return agg.data().total || 0;
+  const [capturedAgg, approvedAgg] = await Promise.all([
+    paymentsCol
+      .where('status', '==', 'captured')
+      .aggregate({ total: AggregateField.sum('amount') })
+      .get()
+      .catch(() => ({ data: () => ({ total: 0 }) })),
+    paymentsCol
+      .where('status', '==', 'approved')
+      .aggregate({ total: AggregateField.sum('amount') })
+      .get()
+      .catch(() => ({ data: () => ({ total: 0 }) })),
+  ]);
+  return (capturedAgg.data().total || 0) + (approvedAgg.data().total || 0);
 };

@@ -10,12 +10,26 @@ export const getPaymentByOrderId = async (orderId) => {
   return plain(
     await Payment.findOne({
       $or: [
-        { cashfreeOrderId: orderId },
         { orderId: orderId },
+        { cashfreeOrderId: orderId },
         { razorpayOrderId: orderId },
       ],
     }).lean()
   );
+};
+
+export const listPaymentsByUser = async (userId) => {
+  if (!userId) return [];
+  return plain(await Payment.find({ userId }).sort({ createdAt: -1 }).lean());
+};
+
+// Atomically move a payment from created/failed to 'processing' (see firestore driver).
+export const claimPaymentForCapture = async (orderId) => {
+  const res = await Payment.updateOne(
+    { orderId, status: { $in: ['created', 'failed'] } },
+    { $set: { status: 'processing', updatedAt: new Date() } }
+  );
+  return res.modifiedCount === 1;
 };
 
 export const updatePayment = async (payment, patch) => {
@@ -25,9 +39,26 @@ export const updatePayment = async (payment, patch) => {
   return payment;
 };
 
+export const getPaymentById = async (id) => {
+  if (!id) return null;
+  return plain(
+    await Payment.findById(id)
+      .populate('userId', 'fullName fullNameEn nikahId phone email district photo photos')
+      .lean()
+  );
+};
+
+export const findPayments = async (query = {}) => {
+  const docs = await Payment.find(query)
+    .sort({ createdAt: -1 })
+    .populate('userId', 'fullName fullNameEn nikahId phone email district photo photos')
+    .lean();
+  return docs.map(plain);
+};
+
 export const totalCapturedPaise = async () => {
   const [agg] = await Payment.aggregate([
-    { $match: { status: 'captured' } },
+    { $match: { status: { $in: ['captured', 'approved'] } } },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
   return agg ? agg.total : 0;

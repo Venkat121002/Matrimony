@@ -2,8 +2,8 @@ import React from 'react';
 import { FaClock, FaShieldAlt, FaCheckCircle, FaMosque, FaHeart, FaWhatsapp } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact }) {
-  const { t } = useLanguage();
+export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpenContact, onOpenSupport }) {
+  const { t, isTamil } = useLanguage();
 
   return (
     <footer className="w-full bg-[#122e21] border-t-2 border-[#caa85d] text-[#e8dfce] shadow-2xl mt-8">
@@ -94,6 +94,18 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
                 </a>
               </div>
             </div>
+
+            {/* QR Code - Separated and Non-Clickable */}
+            <div className="pt-3 mt-1 border-t border-[#caa85d]/20">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 p-1.5 bg-white rounded-lg border-2 border-[#caa85d] shadow-md inline-block">
+                <img
+                  src="/qr-code.jpg"
+                  alt="QR Code"
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  draggable={false}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -129,6 +141,14 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
             >
               {t('aboutUs')}
             </button>
+            {onOpenSupport && (
+              <button
+                onClick={onOpenSupport}
+                className="px-3 py-1 rounded text-xs font-semibold bg-white/10 hover:bg-white/20 border border-[#caa85d]/50 text-[#edd48e] transition"
+              >
+                {isTamil ? 'உதவி மையம்' : 'Help Desk'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -137,14 +157,31 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
       <div className="w-full bg-[#0a1b13] border-t border-[#caa85d]/40 py-3.5 px-4 text-center text-xs font-medium text-[#c4b598]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>© 2026 Tamil Muslim Nikkah</p>
-          <div className="flex items-center gap-4 text-xs">
-            <button onClick={onOpenAbout} className="hover:text-white transition">{t('footerTerms')}</button>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+            <a href="/privacy-policy" className="hover:text-white transition">{isTamil ? 'தனியுரிமைக் கொள்கை' : 'Privacy Policy'}</a>
+            <span>•</span>
+            <a href="/terms-conditions" className="hover:text-white transition">{isTamil ? 'விதிமுறைகள் & நிபந்தனைகள்' : 'Terms & Conditions'}</a>
+            <span>•</span>
+            <a href="/terms-of-service" className="hover:text-white transition">{isTamil ? 'சேவை விதிமுறைகள்' : 'Terms of Service'}</a>
+            <span>•</span>
+            <a href="/refund-cancellation-policy" className="hover:text-white transition">{isTamil ? 'பணம் திரும்பப் பெறுதல் & ரத்து கொள்கை' : 'Refund & Cancellation Policy'}</a>
             <span>•</span>
             <button onClick={onOpenContact} className="hover:text-white transition">{t('contact')}</button>
             <span>•</span>
             <button onClick={onOpenLogin} className="hover:text-white transition">{t('footerLogin')}</button>
           </div>
         </div>
+        <p className="max-w-6xl mx-auto mt-2.5 pt-2.5 border-t border-[#caa85d]/20 text-[11px] text-[#9d907a]">
+          Designed &amp; Developed by{' '}
+          <a
+            href="https://swordnex.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-[#eed48e] hover:text-white underline-offset-2 hover:underline transition"
+          >
+            SwordNex Technologies PVT Ltd
+          </a>
+        </p>
       </div>
     </footer>
   );

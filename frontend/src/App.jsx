@@ -543,12 +543,12 @@ export default function App() {
     }
   };
 
-  // Payment Upgrade Success Handler
-  const handlePaymentSuccess = (verifyData) => {
+  // Payment screenshot submitted: plan is activated later by an admin
+  const handlePaymentPaid = () => {
     showToast(
       isTamil
-        ? 'அல்ஹம்துலில்லாஹ்! பிரீமியம் சந்தா வெற்றிகரமாக செயல்படுத்தப்பட்டது. வரம்பற்ற வரன்களை பார்க்கலாம்! 👑'
-        : 'Payment Successful! Annual Premium Activated. You now have unlimited profile access! 👑',
+        ? 'கட்டணம் வெற்றிகரமாக பெறப்பட்டது! உங்கள் பிரீமியம் உறுப்பினர் இப்போது செயலில் உள்ளது. 🎉'
+        : 'Payment successful! Your Premium Membership is now active. 🎉',
       'success'
     );
     refreshCurrentUser();
@@ -998,6 +998,7 @@ export default function App() {
         onOpenLogin={() => setIsLoginOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenContact={() => setIsContactOpen(true)}
+        onOpenSupport={() => setIsSupportOpen(true)}
       />
 
       {/* MODALS */}
@@ -1062,12 +1063,12 @@ export default function App() {
         onClose={() => setIsContactOpen(false)}
       />
 
-      {/* Cashfree Subscription Upgrade Modal */}
+      {/* Premium Subscription Upgrade Modal (manual UPI QR + screenshot) */}
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         user={currentUser}
-        onPaymentSuccess={handlePaymentSuccess}
+        onPaid={handlePaymentPaid}
       />
 
       {/* Customer Support Desk Modal */}
@@ -1119,15 +1120,14 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         marqueeSettings={subscriptionSettings?.featuredMarquee}
-        onSuccess={() => {
-          refreshCurrentUser();
-          fetchProfiles();
+        onPaid={() => {
           showToast(
             isTamil
-              ? 'வாழ்த்துகள்! உங்கள் வரன் ஓடும் பட்டியில் வெற்றிகரமாக சேர்க்கப்பட்டது! 🌟'
-              : 'Congratulations! Your profile is now featured in the Running Marquee Bar! 🌟',
+              ? 'கட்டணம் வெற்றிகரமாக பெறப்பட்டது! உங்கள் வரன் இப்போது ஓடும் பட்டியில் உள்ளது. 🌟'
+              : 'Payment successful! Your profile is now in the Running Marquee Bar. 🌟',
             'success'
           );
+          refreshCurrentUser();
         }}
       />
     </div>

@@ -39,6 +39,8 @@ import {
   FaToggleOff,
   FaUndo,
   FaHeadset,
+  FaReceipt,
+  FaMoneyBillWave,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import DefaultAvatar from './DefaultAvatar';
@@ -487,6 +489,167 @@ export default function AdminPage({ portalType = 'superadmin' }) {
     }
   };
 
+  // ─── Payment Proofs State & Handlers ───
+  const [paymentProofs, setPaymentProofs] = useState([]);
+  const [isPaymentProofsOpen, setIsPaymentProofsOpen] = useState(false);
+  const [proofsLoading, setProofsLoading] = useState(false);
+  const [proofFilter, setProofFilter] = useState('pending'); // 'all' | 'pending' | 'approved' | 'rejected'
+  const [proofSearchQuery, setProofSearchQuery] = useState('');
+  const [proofActionLoadingId, setProofActionLoadingId] = useState(null);
+  const [rejectingProofId, setRejectingProofId] = useState(null);
+  const [proofRejectReason, setProofRejectReason] = useState('');
+  const [pendingProofsCount, setPendingProofsCount] = useState(0);
+
+  const fetchPaymentProofs = useCallback(async () => {
+    try {
+      setProofsLoading(true);
+      const res = await fetch('/api/admin/payment-proofs?status=all', {
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.proofs)) {
+        setPaymentProofs(data.proofs);
+        const count = data.pendingCount ?? data.proofs.filter((p) => p.status === 'pending').length;
+        setPendingProofsCount(count);
+      }
+    } catch (err) {
+      console.error('Failed to fetch payment proofs:', err);
+    } finally {
+      setProofsLoading(false);
+    }
+  }, [getHeaders]);
+
+  const handleApproveProof = async (proof) => {
+    setProofActionLoadingId(proof._id);
+    try {
+      const res = await fetch(`/api/admin/payment-proofs/${proof._id}/approve`, {
+        method: 'PUT',
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          data.message || (isTamil ? 'கட்டண சான்று சரிபார்க்கப்பட்டு அம்சம் செயல்படுத்தப்பட்டது!' : 'Payment verified and feature enabled!'),
+          'success'
+        );
+        setPaymentProofs((prev) =>
+          prev.map((p) =>
+            p._id === proof._id
+              ? { ...p, status: 'approved', capturedAt: new Date(), verifiedAt: new Date() }
+              : p
+          )
+        );
+        setPendingProofsCount((prev) => Math.max(0, prev - 1));
+        fetchUsers();
+      } else {
+        showToast(data.message || 'Failed to approve payment proof.', 'error');
+      }
+    } catch (err) {
+      console.error('[Approve proof error]:', err);
+      showToast('Error approving payment proof', 'error');
+    } finally {
+      setProofActionLoadingId(null);
+    }
+  };
+
+  const handleRejectProof = async (proofId) => {
+    setProofActionLoadingId(proofId);
+    try {
+      const res = await fetch(`/api/admin/payment-proofs/${proofId}/reject`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ reason: proofRejectReason || 'Payment screenshot could not be verified.' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(isTamil ? 'கட்டண சான்று நிராகரிக்கப்பட்டது.' : 'Payment proof rejected.', 'info');
+        setPaymentProofs((prev) =>
+          prev.map((p) =>
+            p._id === proofId
+              ? { ...p, status: 'rejected', rejectionReason: proofRejectReason || 'Rejected by admin' }
+              : p
+          )
+        );
+        setPendingProofsCount((prev) => Math.max(0, prev - 1));
+        setRejectingProofId(null);
+        setProofRejectReason('');
+      } else {
+        showToast(data.message || 'Failed to reject payment proof.', 'error');
+      }
+    } catch (err) {
+      console.error('[Reject proof error]:', err);
+      showToast('Error rejecting payment proof', 'error');
+    } finally {
+      setProofActionLoadingId(null);
+    }
+  };
+
+  const handleToggleUserFeatured = async (u) => {
+    const willBeFeatured = !u.isFeatured;
+    try {
+      const res = await fetch(`/api/admin/users/${u._id}/featured`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ isFeatured: willBeFeatured, durationDays: 15 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, 'success');
+        setUsers((prev) =>
+          prev.map((usr) =>
+            usr._id === u._id
+              ? { ...usr, isFeatured: willBeFeatured, featuredUntil: data.featuredUntil }
+              : usr
+          )
+        );
+        if (selectedUser && selectedUser._id === u._id) {
+          setSelectedUser((prev) => ({
+            ...prev,
+            isFeatured: willBeFeatured,
+            featuredUntil: data.featuredUntil,
+          }));
+        }
+      } else {
+        showToast(data.message || 'Failed to update featured status', 'error');
+      }
+    } catch (err) {
+      showToast('Network error updating featured status', 'error');
+    }
+  };
+
+  const filteredProofs = useMemo(() => {
+    return paymentProofs.filter((p) => {
+      if (proofFilter !== 'all' && p.status !== proofFilter) return false;
+      if (proofSearchQuery.trim()) {
+        const q = proofSearchQuery.toLowerCase().trim();
+        const nikahId = (p.user?.nikahId || p.userSnapshot?.nikahId || '').toLowerCase();
+        const name = (p.user?.fullName || p.userSnapshot?.fullName || '').toLowerCase();
+        const phone = (p.user?.phone || p.userSnapshot?.phone || '').toLowerCase();
+        const txId = (p.transactionId || '').toLowerCase();
+        const plan = (p.planName || '').toLowerCase();
+        return (
+          nikahId.includes(q) ||
+          name.includes(q) ||
+          phone.includes(q) ||
+          txId.includes(q) ||
+          plan.includes(q)
+        );
+      }
+      return true;
+    });
+  }, [paymentProofs, proofFilter, proofSearchQuery]);
+
+  const pendingProofUserIds = useMemo(() => {
+    const set = new Set();
+    paymentProofs
+      .filter((p) => p.status === 'pending')
+      .forEach((p) => {
+        const uid = p.userId?._id || p.userId;
+        if (uid) set.add(String(uid));
+      });
+    return set;
+  }, [paymentProofs]);
+
   // Fetch all registered users
   const fetchUsers = useCallback(
     async (customKey) => {
@@ -524,8 +687,9 @@ export default function AdminPage({ portalType = 'superadmin' }) {
   useEffect(() => {
     if (isAuthenticated && adminKey) {
       fetchUsers(adminKey);
+      fetchPaymentProofs();
     }
-  }, [isAuthenticated, adminKey, fetchUsers]);
+  }, [isAuthenticated, adminKey, fetchUsers, fetchPaymentProofs]);
 
   // Handle Login Submission
   const handleLoginSubmit = async (e) => {
@@ -913,6 +1077,25 @@ export default function AdminPage({ portalType = 'superadmin' }) {
               <span>{t('adminRefreshBtn')}</span>
             </button>
 
+            {/* Payment Proofs Verification Button (Available on Admin & Super Admin) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsPaymentProofsOpen(true);
+                fetchPaymentProofs();
+              }}
+              className="px-3 py-1.5 rounded-md bg-[#163828] hover:bg-[#205039] text-[#edd48e] font-black text-xs flex items-center gap-1.5 transition shadow border border-[#caa85d] cursor-pointer"
+              title={isTamil ? 'கட்டண சான்றுகள் சரிபார்ப்பு' : 'Payment Proofs Verification'}
+            >
+              <FaReceipt className="text-xs text-amber-300" />
+              <span>{isTamil ? 'கட்டண சரிபார்ப்புகள்' : 'Payment Proofs'}</span>
+              {pendingProofsCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] rounded-full font-bold animate-pulse">
+                  {pendingProofsCount}
+                </span>
+              )}
+            </button>
+
             {/* Admin Exclusive Action Buttons: Help Desk Queries & Subscription Settings */}
             {!isSuperAdmin && (
               <>
@@ -1261,24 +1444,55 @@ export default function AdminPage({ portalType = 'superadmin' }) {
 
                         {/* Verification Status */}
                         <td className="py-2.5 px-3">
-                          {isPending && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              <FaClock className="text-[10px]" />
-                              <span>{t('adminStatusPending')}</span>
-                            </span>
-                          )}
-                          {isVerified && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              <FaCheckCircle className="text-[10px]" />
-                              <span>{t('adminStatusVerified')}</span>
-                            </span>
-                          )}
-                          {!isPending && !isVerified && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-900 border border-red-300">
-                              <FaTimesCircle className="text-[10px]" />
-                              <span>{t('adminStatusRejected')}</span>
-                            </span>
-                          )}
+                          <div className="flex flex-col gap-1 items-start">
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <FaClock className="text-[10px]" />
+                                <span>{t('adminStatusPending')}</span>
+                              </span>
+                            )}
+                            {isVerified && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                <FaCheckCircle className="text-[10px]" />
+                                <span>{t('adminStatusVerified')}</span>
+                              </span>
+                            )}
+                            {!isPending && !isVerified && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-900 border border-red-300">
+                                <FaTimesCircle className="text-[10px]" />
+                                <span>{t('adminStatusRejected')}</span>
+                              </span>
+                            )}
+
+                            {/* Featured in Marquee Badge */}
+                            {user.isFeatured && (!user.featuredUntil || new Date(user.featuredUntil) > new Date()) && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950 border border-amber-400 shadow-xs"
+                                title={isTamil ? 'ஓடும் பட்டியில் காட்சிப்படுத்தப்பட்டுள்ளது' : 'Featured in Marquee'}
+                              >
+                                <FaStar className="text-[9px] text-amber-800" />
+                                <span>{isTamil ? 'ஓடும் பட்டி' : 'Marquee'}</span>
+                              </span>
+                            )}
+
+                            {/* Pending Payment Proof Badge */}
+                            {pendingProofUserIds.has(String(user._id)) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProofFilter('all');
+                                  setProofSearchQuery(user.nikahId);
+                                  setIsPaymentProofsOpen(true);
+                                  fetchPaymentProofs();
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 shadow-xs cursor-pointer animate-pulse"
+                                title={isTamil ? 'கட்டண சான்று சரிபார்க்க கிளிக் செய்க' : 'Click to verify payment proof'}
+                              >
+                                <FaReceipt className="text-[9px]" />
+                                <span>{isTamil ? 'கட்டண சான்று' : 'Payment Proof'}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {/* Actions */}
@@ -1298,12 +1512,31 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                             {/* Verify & Remove Buttons (ONLY on Admin, REMOVED from Super Admin) */}
                             {!isSuperAdmin && (
                               <>
+                                {/* Quick Toggle Marquee */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleUserFeatured(user)}
+                                  className={`px-2 py-1 rounded text-xs font-bold border transition flex items-center gap-1 ${
+                                    user.isFeatured
+                                      ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:bg-amber-50'
+                                  }`}
+                                  title={
+                                    user.isFeatured
+                                      ? (isTamil ? 'ஓடும் பட்டியிலிருந்து நீக்க' : 'Remove from Marquee')
+                                      : (isTamil ? 'ஓடும் பட்டியில் முன்னிலைப்படுத்த' : 'Feature in Marquee')
+                                  }
+                                >
+                                  <FaStar className={user.isFeatured ? 'text-amber-600' : 'text-gray-400'} />
+                                  <span>{user.isFeatured ? 'Featured' : '+ Marquee'}</span>
+                                </button>
+
                                 {(!isVerified || isPending) && (
                                   <button
                                     type="button"
                                     disabled={actionLoadingId === user._id}
                                     onClick={() => handleVerifyUser(user)}
-                                    className="px-2.5 py-1 rounded text-xs font-bold bg-[#163828] hover:bg-[#25583f] text-[#edd48e] border border-[#caa85d] flex items-center gap-1 shadow-xs transition"
+                                    className="px-2.5 py-1 rounded text-xs font-bold bg-[#163828] hover:bg-[#25583f] text-[#edd48e] border border-[#caa85d] flex items-center gap-1 shadow-xs transition cursor-pointer"
                                     title={isTamil ? "சரிபார்த்து தளத்தில் வெளியிட" : "Verify and approve"}
                                   >
                                     <FaCheck className="text-[10px]" />
@@ -1315,7 +1548,7 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                                   type="button"
                                   disabled={actionLoadingId === user._id}
                                   onClick={() => setUserToDelete(user)}
-                                  className="px-2.5 py-1 rounded text-xs font-bold bg-red-800 hover:bg-red-700 text-white flex items-center gap-1 shadow-xs transition"
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-red-800 hover:bg-red-700 text-white flex items-center gap-1 shadow-xs transition cursor-pointer"
                                   title={isTamil ? "இந்த வரனை நீக்க" : "Delete user profile"}
                                 >
                                   <FaTrashAlt className="text-[10px]" />
@@ -1462,6 +1695,55 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                   <span className="px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
                     <FaClock className="text-[10px]" /> {t('adminStatusPending')}
                   </span>
+                )}
+
+                {/* Subscription Badge */}
+                <span className={`px-2.5 py-0.5 rounded-full font-bold text-xs border flex items-center gap-1 ${
+                  selectedUser.subscriptionStatus === 'premium'
+                    ? 'bg-amber-100 text-amber-950 border-amber-300'
+                    : 'bg-gray-100 text-gray-700 border-gray-300'
+                }`}>
+                  <FaCrown className={selectedUser.subscriptionStatus === 'premium' ? 'text-amber-600' : 'text-gray-400'} />
+                  <span>
+                    {selectedUser.subscriptionStatus === 'premium'
+                      ? (isTamil ? 'பிரீமியம் சந்தா' : 'Premium Member')
+                      : (isTamil ? 'இலவச கணக்கு' : 'Free Trial')}
+                  </span>
+                </span>
+
+                {/* Featured in Marquee Badge & Toggle Button */}
+                {!isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleUserFeatured(selectedUser)}
+                    className={`px-2.5 py-0.5 rounded-full font-bold text-xs border transition flex items-center gap-1 cursor-pointer ${
+                      selectedUser.isFeatured
+                        ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950 border-amber-400 shadow-xs'
+                        : 'bg-white hover:bg-amber-50 text-gray-700 border-gray-300'
+                    }`}
+                    title={selectedUser.isFeatured ? (isTamil ? 'ஓடும் பட்டியிலிருந்து நீக்க' : 'Remove from Marquee') : (isTamil ? 'ஓடும் பட்டியில் 15 நாட்கள் முன்னிலைப்படுத்த' : 'Feature in Marquee for 15 Days')}
+                  >
+                    <FaStar className={selectedUser.isFeatured ? 'text-amber-700' : 'text-gray-400'} />
+                    <span>{selectedUser.isFeatured ? (isTamil ? 'ஓடும் பட்டி (செயலில்)' : 'Featured (Active)') : (isTamil ? '+ ஓடும் பட்டி' : '+ Feature Marquee')}</span>
+                  </button>
+                )}
+
+                {/* Pending Payment Proof Action */}
+                {pendingProofUserIds.has(String(selectedUser._id)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProofFilter('all');
+                      setProofSearchQuery(selectedUser.nikahId);
+                      setIsPaymentProofsOpen(true);
+                      fetchPaymentProofs();
+                    }}
+                    className="px-2.5 py-0.5 rounded-full font-black text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 shadow-xs cursor-pointer animate-pulse flex items-center gap-1"
+                    title={isTamil ? 'கட்டண சான்றை சரிபார்க்க' : 'Inspect payment proof'}
+                  >
+                    <FaReceipt className="text-[10px]" />
+                    <span>{isTamil ? 'கட்டண சான்று பரிசீலனை' : 'Inspect Payment Proof'}</span>
+                  </button>
                 )}
               </div>
 
@@ -2720,6 +3002,414 @@ export default function AdminPage({ portalType = 'superadmin' }) {
                           </div>
                         )}
                       </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Payment Proofs Verification Modal ─── */}
+      {isPaymentProofsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          {...makeSafeBackdropProps(() => setIsPaymentProofsOpen(false))}
+        >
+          <div
+            className="w-full max-w-5xl bg-[#faf7ef] border-2 border-[#caa85d] rounded-2xl shadow-2xl overflow-hidden relative my-4 max-h-[92vh] flex flex-col"
+            {...safeModalContentProps}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#163828] via-[#21543c] to-[#163828] py-3.5 px-5 flex items-center justify-between border-b-2 border-[#caa85d] flex-shrink-0 text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#caa85d] to-[#8a6d2f] flex items-center justify-center text-[#163828] shadow">
+                  <FaReceipt className="text-sm" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-[#fffae6] tracking-wide font-cinzel flex items-center gap-2">
+                    <span>{isTamil ? 'கட்டண சான்றுகள் சரிபார்ப்பு' : 'Payment Proofs Verification'}</span>
+                    <span className="text-xs bg-amber-400 text-gray-900 font-black px-2 py-0.5 rounded-full uppercase">
+                      UPI Receipts Desk
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-[#ebd7af]">
+                    {isTamil
+                      ? 'சந்தா & ஓடும் பட்டி விளம்பரங்களுக்கான யுபிஐ கட்டண ரசீதுகளை சரிபார்த்து அம்சங்களை இயக்கவும்'
+                      : 'Verify manual UPI payment screenshots and activate requested premium features'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaymentProofsOpen(false)}
+                className="text-white/80 hover:text-white transition p-1 text-base cursor-pointer"
+                aria-label="Close"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {/* Filter & Search Bar Strip */}
+            <div className="bg-[#ede4d1] p-3 border-b border-[#dfd2ba] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs flex-shrink-0">
+              {/* Status Tabs */}
+              <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
+                {[
+                  {
+                    id: 'pending',
+                    labelEn: 'Pending',
+                    labelTa: 'பரிசீலனையில்',
+                    count: paymentProofs.filter((p) => p.status === 'pending').length,
+                    isAlert: true,
+                  },
+                  {
+                    id: 'all',
+                    labelEn: 'All Proofs',
+                    labelTa: 'அனைத்தும்',
+                    count: paymentProofs.length,
+                  },
+                  {
+                    id: 'approved',
+                    labelEn: 'Approved',
+                    labelTa: 'ஏற்கப்பட்டவை',
+                    count: paymentProofs.filter((p) => p.status === 'approved').length,
+                  },
+                  {
+                    id: 'rejected',
+                    labelEn: 'Rejected',
+                    labelTa: 'நிராகரிக்கப்பட்டவை',
+                    count: paymentProofs.filter((p) => p.status === 'rejected').length,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProofFilter(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      proofFilter === tab.id
+                        ? 'bg-[#163828] text-[#edd48e] shadow-sm'
+                        : 'bg-white text-gray-700 hover:bg-[#faf4e6] border border-[#d2c2a3]'
+                    }`}
+                  >
+                    <span>{isTamil ? tab.labelTa : tab.labelEn}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                        tab.isAlert && tab.count > 0
+                          ? 'bg-red-600 text-white animate-pulse'
+                          : 'bg-black/10'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Search & Refresh */}
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                <div className="relative flex-1 sm:w-64">
+                  <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                  <input
+                    type="text"
+                    value={proofSearchQuery}
+                    onChange={(e) => setProofSearchQuery(e.target.value)}
+                    placeholder={
+                      isTamil
+                        ? 'Nikah ID, பெயர், போன், UTR எண் மூலம் தேடுக...'
+                        : 'Search by Nikah ID, Name, Phone, UTR...'
+                    }
+                    className="w-full pl-7 pr-3 py-1 text-xs bg-white border border-[#c5b597] rounded-md focus:outline-none focus:ring-1 focus:ring-[#caa85d] text-gray-900"
+                  />
+                  {proofSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setProofSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      <FaTimes className="text-[10px]" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchPaymentProofs}
+                  className="p-1.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-[#c5b597] cursor-pointer"
+                  title="Refresh"
+                >
+                  <FaRedo className={`text-xs ${proofsLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: List of Proofs */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs sm:text-sm custom-scrollbar">
+              {proofsLoading && (
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-center gap-2 font-bold animate-pulse">
+                  <FaClock />
+                  <span>{isTamil ? 'கட்டண சான்றுகள் ஏற்றப்படுகின்றன...' : 'Loading payment proofs...'}</span>
+                </div>
+              )}
+
+              {filteredProofs.length === 0 && !proofsLoading ? (
+                <div className="p-10 text-center bg-white border border-[#dfd2ba] rounded-xl space-y-3">
+                  <FaReceipt className="text-4xl text-gray-300 mx-auto" />
+                  <h4 className="font-bold text-gray-700 text-sm sm:text-base">
+                    {isTamil ? 'கட்டண சான்றுகள் எதுவும் இல்லை' : 'No Payment Proofs Found'}
+                  </h4>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    {isTamil
+                      ? 'பயனாளர்கள் யுபிஐ மூலம் சந்தா அல்லது ஓடும் பட்டி விளம்பரங்களுக்காக பணம் செலுத்தி பதிவேற்றும் ரசீதுகள் இங்கு பரிசீலனைக்கு தோன்றும்.'
+                      : 'Payment screenshots uploaded by users for Monthly/Yearly Subscription or Featured Marquee will appear here for verification.'}
+                  </p>
+                </div>
+              ) : (
+                filteredProofs.map((proof) => {
+                  const pId = proof._id;
+                  const isPending = proof.status === 'pending';
+                  const isApproved = proof.status === 'approved';
+                  const isRejected = proof.status === 'rejected';
+
+                  // User Info resolution
+                  const uInfo = proof.userSnapshot || proof.userId || {};
+                  const userNikahId = uInfo.nikahId || 'N/A';
+                  const userName = uInfo.fullName || 'Anonymous';
+                  const userPhone = uInfo.phone || 'N/A';
+                  const userDistrict = uInfo.district || uInfo.state || '';
+
+                  // Plan presentation
+                  const isMarquee = proof.planType === 'featured_marquee';
+                  const isMonthly = proof.planType === 'monthly_subscription';
+                  const isYearly = proof.planType === 'yearly_subscription';
+
+                  const dateStr = proof.createdAt
+                    ? new Date(proof.createdAt).toLocaleString(isTamil ? 'ta-IN' : 'en-US', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })
+                    : 'Recent';
+
+                  return (
+                    <div
+                      key={pId}
+                      className={`p-4 rounded-xl border-2 transition-all shadow-xs ${
+                        isPending
+                          ? 'bg-amber-50/40 border-amber-300 hover:border-amber-400'
+                          : isApproved
+                          ? 'bg-emerald-50/30 border-emerald-300'
+                          : 'bg-red-50/20 border-red-200'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start">
+                        {/* Left column: User info & Plan details */}
+                        <div className="flex-1 space-y-2.5 w-full">
+                          {/* Top Tag Row */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-md bg-[#163828] text-[#edd48e] border border-[#caa85d]">
+                              {userNikahId}
+                            </span>
+                            <span className="font-bold text-gray-900 text-sm">
+                              {userName}
+                            </span>
+                            {userDistrict && (
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <FaMapMarkerAlt className="text-[10px]" />
+                                {userDistrict}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-500 flex items-center gap-1 font-mono">
+                              <FaPhoneAlt className="text-[10px]" />
+                              {userPhone}
+                            </span>
+                          </div>
+
+                          {/* Plan Reason & Amount Card */}
+                          <div className="p-3 bg-white rounded-lg border border-[#e5d9c2] flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-center gap-2.5">
+                              {isMarquee ? (
+                                <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 flex-shrink-0">
+                                  <FaStar className="text-sm" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-yellow-100 border border-yellow-300 flex items-center justify-center text-yellow-800 flex-shrink-0">
+                                  <FaCrown className="text-sm" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-black text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
+                                  <span>
+                                    {isMarquee
+                                      ? (isTamil ? 'ஓடும் பட்டி விளம்பரம் (15 நாட்கள்)' : 'Featured Profile in Marquee (15 Days)')
+                                      : isMonthly
+                                      ? (isTamil ? 'பிரீமியம் சந்தா (1 மாதம் / 30 நாட்கள்)' : 'Monthly Premium Subscription (30 Days)')
+                                      : isYearly
+                                      ? (isTamil ? 'பிரீமியம் சந்தா (1 வருடம் / 365 நாட்கள்)' : 'Annual Premium Subscription (1 Year)')
+                                      : (proof.planName || 'Special Plan')}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
+                                  <span>{isTamil ? 'தேதி' : 'Date'}: {dateStr}</span>
+                                  {proof.transactionId && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="font-mono text-purple-900 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                        UTR: <strong>{proof.transactionId}</strong>
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-500 uppercase font-bold block">
+                                {isTamil ? 'செலுத்திய தொகை' : 'Amount Paid'}
+                              </span>
+                              <span className="text-base sm:text-lg font-black text-[#163828]">
+                                ₹{proof.amount}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Notes if any */}
+                          {proof.notes && (
+                            <div className="p-2 bg-gray-50 rounded border border-gray-200 text-xs text-gray-700 italic">
+                              <strong>{isTamil ? 'குறிப்பு' : 'User Note'}:</strong> "{proof.notes}"
+                            </div>
+                          )}
+
+                          {/* Rejection / Approval Status Log */}
+                          {isRejected && (
+                            <div className="p-2.5 bg-red-100/70 border border-red-300 rounded text-red-900 text-xs font-semibold flex items-center gap-1.5">
+                              <FaTimesCircle className="text-red-600 flex-shrink-0" />
+                              <span>
+                                {isTamil ? 'நிராகரிப்பு காரணம்: ' : 'Rejection Reason: '}
+                                {proof.rejectionReason || 'Receipt details not verified.'}
+                              </span>
+                            </div>
+                          )}
+
+                          {isApproved && (
+                            <div className="p-2.5 bg-emerald-100/70 border border-emerald-300 rounded text-emerald-900 text-xs font-semibold flex items-center gap-1.5">
+                              <FaCheckCircle className="text-emerald-600 flex-shrink-0" />
+                              <span>
+                                {isTamil
+                                  ? 'கட்டணம் வெற்றிகரமாக சரிபார்க்கப்பட்டு அம்சம் இயக்கப்பட்டுள்ளது.'
+                                  : 'Payment verified and requested feature has been activated.'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right column: Screenshot Thumbnail & Big Preview Button */}
+                        <div className="flex flex-col items-center sm:items-start lg:items-end w-full lg:w-48 flex-shrink-0">
+                          {proof.proofScreenshot ? (
+                            <div className="relative group w-full sm:w-48 h-36 rounded-lg overflow-hidden border-2 border-gray-300 bg-black/5 shadow cursor-pointer">
+                              <img
+                                src={proof.proofScreenshot}
+                                alt="Payment Proof Screenshot"
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onClick={() => setPreviewPhotoUrl(proof.proofScreenshot)}
+                              />
+                              <div
+                                onClick={() => setPreviewPhotoUrl(proof.proofScreenshot)}
+                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1"
+                              >
+                                <FaEye className="text-base" />
+                                <span>{isTamil ? 'பெரிதாக்குக' : 'Click to Zoom'}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full sm:w-48 h-36 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs text-center p-2">
+                              {isTamil ? 'ரசீது படம் இல்லை' : 'No screenshot uploaded'}
+                            </div>
+                          )}
+
+                          {/* Quick Fullscreen open link */}
+                          {proof.proofScreenshot && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPhotoUrl(proof.proofScreenshot)}
+                              className="mt-1.5 text-[11px] font-bold text-[#163828] hover:text-[#25583f] flex items-center gap-1 underline cursor-pointer"
+                            >
+                              <FaEye className="text-[10px]" />
+                              <span>{isTamil ? 'சான்றை பெரிதாகப் பார்க்க' : 'View Full Image'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Footer for Pending status */}
+                      {isPending && (
+                        <div className="mt-3.5 pt-3 border-t border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <div className="text-xs text-amber-900 font-medium">
+                            {isMarquee
+                              ? (isTamil ? '💡 ஏற்றுக்கொண்டால், இந்த வரன் 15 நாட்களுக்கு முகப்பு ஓடும் பட்டியில் முன்னிலைப்படுத்தப்படும்.' : '💡 Approving will feature this profile on the homepage marquee for 15 days.')
+                              : (isTamil ? '💡 ஏற்றுக்கொண்டால், இந்த வரனுக்கு பிரீமியம் சந்தா காலம் உடனடியாக செயல்படுத்தப்படும்.' : '💡 Approving will activate the premium subscription duration for this user immediately.')}
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            {rejectingProofId === pId ? (
+                              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                <input
+                                  type="text"
+                                  value={proofRejectReason}
+                                  onChange={(e) => setProofRejectReason(e.target.value)}
+                                  placeholder={isTamil ? 'நிராகரிப்பு காரணம்...' : 'Reason for rejection...'}
+                                  className="px-2.5 py-1 text-xs border border-red-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500 w-44"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={proofActionLoadingId === pId}
+                                  onClick={() => handleRejectProof(pId)}
+                                  className="px-3 py-1 bg-red-700 hover:bg-red-800 text-white rounded font-bold text-xs shadow-xs cursor-pointer"
+                                >
+                                  {proofActionLoadingId === pId ? '...' : (isTamil ? 'உறுதி செய்' : 'Confirm')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectingProofId(null);
+                                    setProofRejectReason('');
+                                  }}
+                                  className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs cursor-pointer"
+                                >
+                                  {isTamil ? 'ரத்து' : 'Cancel'}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={proofActionLoadingId === pId}
+                                  onClick={() => {
+                                    setRejectingProofId(pId);
+                                    setProofRejectReason(isTamil ? 'ரசீது தெளிவாக இல்லை / கட்டணம் பெறப்படவில்லை' : 'Receipt unclear or payment not received');
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-red-700 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                                >
+                                  <FaTimesCircle className="text-xs" />
+                                  <span>{isTamil ? 'நிராகரி' : 'Reject Proof'}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={proofActionLoadingId === pId}
+                                  onClick={() => handleApproveProof(proof)}
+                                  className="px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs flex items-center gap-1.5 shadow transition cursor-pointer"
+                                >
+                                  <FaCheckCircle className="text-xs" />
+                                  <span>
+                                    {proofActionLoadingId === pId
+                                      ? (isTamil ? 'செயல்படுத்தப்படுகிறது...' : 'Enabling...')
+                                      : (isTamil ? 'சரிபார்த்து செயல்படுத்தவும்' : 'Approve & Enable Feature')}
+                                  </span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })

@@ -1,14 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { FieldValue } from 'firebase-admin/firestore';
-import { db, fromDoc, toData } from '../../config/firebase.js';
+import { db, tenantCol, fromDoc, toData } from '../../config/firebase.js';
+import {
+  tenantAuthEnabled,
+  authEmailCandidates,
+  createTenantUser,
+  verifyTenantPassword,
+  updateTenantPassword,
+  deleteTenantUser,
+} from '../../services/tenantAuthService.js';
 
 /**
  * Firestore `users` collection (replaces the Mongoose User model).
  * Documents are keyed by an auto id; `_id` on returned objects is that id.
- * The bcrypt `password` hash is stripped from every read unless explicitly requested.
+ * Stored under the Matrimony tenant (Matrimony/main/users). When an Identity Platform tenant is
+ * configured (AUTH_TENANT_ID) the password lives there: the member document keeps `authUid` /
+ * `authEmail` instead of a bcrypt hash. Accounts created before the tenant existed still carry a
+ * bcrypt `password`; they are moved into the tenant on their first successful login or reset
+ * (or in bulk by scripts/migrateToTenant.js). The hash is stripped from every read unless requested.
  */
-const usersCol = db.collection('users');
-const countersCol = db.collection('counters');
+const usersCol = tenantCol('users');
+const countersCol = tenantCol('counters');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -112,16 +124,46 @@ export const nextNikahId = async () => {
 
 export const createUser = async (fields) => {
   const now = new Date();
-  const salt = await bcrypt.genSalt(10);
-  const data = {
-    ...userDefaults(),
-    ...fields,
-    password: await bcrypt.hash(fields.password, salt),
-    createdAt: now,
-    updatedAt: now,
-  };
-  const ref = await usersCol.add(data);
-  return stripPassword({ _id: ref.id, ...data });
+  const { password, ...rest } = fields;
+  const data = { ...userDefaults(), ...rest, createdAt: now, updatedAt: now };
+
+  let tenantUid = null;
+  if (tenantAuthEnabled) {
+    const login = await createTenantUser({
+      candidates: authEmailCandidates(fields),
+      password,
+      displayName: fields.fullNameEn || fields.fullName,
+    });
+    tenantUid = login.uid;
+    data.authUid = login.uid;
+    data.authEmail = login.email;
+  } else {
+    data.password = await bcrypt.hash(password, await bcrypt.genSalt(10));
+  }
+
+  try {
+    const ref = await usersCol.add(data);
+    return stripPassword({ _id: ref.id, ...data });
+  } catch (err) {
+    if (tenantUid) await deleteTenantUser(tenantUid).catch(() => {});
+    throw err;
+  }
+};
+
+// Give a bcrypt-era member a tenant login and drop the stored hash.
+const moveToTenant = async (user, password) => {
+  const login = await createTenantUser({
+    candidates: authEmailCandidates(user),
+    password,
+    displayName: user.fullNameEn || user.fullName,
+  });
+  await usersCol.doc(String(user._id)).update({
+    authUid: login.uid,
+    authEmail: login.email,
+    password: FieldValue.delete(),
+    updatedAt: new Date(),
+  });
+  return login;
 };
 
 export const getUserById = async (id, { withPassword = false } = {}) => {
@@ -165,7 +207,16 @@ export const findUserByIdentifiers = async (
   return withPassword ? user : stripPassword(user);
 };
 
-export const comparePassword = (user, entered) => bcrypt.compare(entered, user.password || '');
+export const comparePassword = async (user, entered) => {
+  if (user.authUid) {
+    return tenantAuthEnabled ? verifyTenantPassword(user.authEmail, entered) : false;
+  }
+  const ok = await bcrypt.compare(entered, user.password || '');
+  if (ok && tenantAuthEnabled) {
+    await moveToTenant(user, entered).catch((err) => console.error('[Tenant] Could not move member to tenant:', err.message));
+  }
+  return ok;
+};
 
 export const setResetOtp = async (userId, code, expiresAt) => {
   await usersCol.doc(String(userId)).update({
@@ -201,13 +252,23 @@ export const checkResetOtpVerified = async (userId) => {
 };
 
 export const setUserPassword = async (userId, newPassword) => {
+  const ref = usersCol.doc(String(userId));
+  const clearOtp = { resetOtp: { code: '', expiresAt: null, verified: false }, updatedAt: new Date() };
+
+  if (tenantAuthEnabled) {
+    const user = fromDoc(await ref.get());
+    if (user?.authUid) {
+      await updateTenantPassword(user.authUid, newPassword);
+      await ref.update(clearOtp);
+    } else if (user) {
+      await moveToTenant({ ...user, _id: user._id }, newPassword);
+      await ref.update(clearOtp);
+    }
+    return;
+  }
+
   const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(newPassword, salt);
-  await usersCol.doc(String(userId)).update({
-    password: hashedPassword,
-    resetOtp: { code: '', expiresAt: null, verified: false },
-    updatedAt: new Date(),
-  });
+  await ref.update({ password: await bcrypt.hash(newPassword, salt), ...clearOtp });
 };
 
 // Apply a partial update and mirror it onto the in-memory object.
@@ -220,15 +281,16 @@ export const updateUser = async (user, patch) => {
 
 export const deleteUserById = async (id) => {
   if (!id) return;
-  const docRef = usersCol.doc(String(id));
-  const doc = await docRef.get();
-  if (doc.exists) {
-    return docRef.delete();
+  let doc = await usersCol.doc(String(id)).get();
+  if (!doc.exists) {
+    const snap = await usersCol.where('nikahId', '==', String(id)).limit(1).get();
+    if (snap.empty) return;
+    doc = snap.docs[0];
   }
-  const snap = await usersCol.where('nikahId', '==', String(id)).limit(1).get();
-  if (!snap.empty) {
-    return snap.docs[0].ref.delete();
-  }
+  // Remove the tenant login first; if that fails the member document is kept so nothing is orphaned.
+  const authUid = doc.data()?.authUid;
+  if (authUid && tenantAuthEnabled) await deleteTenantUser(authUid);
+  return doc.ref.delete();
 };
 
 export const addToShortlist = (userId, targetId) =>

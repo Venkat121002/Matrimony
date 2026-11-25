@@ -1,4 +1,4 @@
-import { db, fromDoc, toData } from '../../config/firebase.js';
+import { tenantCol, fromDoc, toData } from '../../config/firebase.js';
 
 export const DEFAULT_SETTINGS = {
   key: 'global_settings',
@@ -35,7 +35,7 @@ export const DEFAULT_SETTINGS = {
   },
 };
 
-const settingsCol = db.collection('settings');
+const settingsCol = tenantCol('settings');
 
 export const getSettings = async () => {
   const doc = await settingsCol.doc('global_settings').get();

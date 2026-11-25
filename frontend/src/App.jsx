@@ -398,7 +398,10 @@ export default function App() {
       return;
     }
 
-    const isPremium = currentUser.subscriptionStatus === 'premium' || currentUser.role === 'admin';
+    const isPremium =
+      currentUser.role === 'admin' ||
+      (currentUser.subscriptionStatus === 'premium' &&
+        (!currentUser.premiumExpiresAt || new Date(currentUser.premiumExpiresAt) > new Date()));
     const FREE_CHOSEN_LIMIT = Number(subscriptionSettings?.freeTierLimits?.maxShortlistProfiles ?? 3);
 
     setShortlistedIds((prev) => {

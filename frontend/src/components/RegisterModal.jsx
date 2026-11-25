@@ -36,7 +36,7 @@ import {
 import { transliterateSentence } from '../utils/tamilTransliterate';
 
 const TamilInput = (props) => {
-  return <TamilInputBase {...props} showInputTools={props.showInputTools ?? false} />;
+  return <TamilInputBase {...props} showInputTools={props.showInputTools ?? true} />;
 };
 
 export default function RegisterModal({
@@ -411,10 +411,21 @@ export default function RegisterModal({
   const validateForm = () => {
     setErrorMsg('');
 
-    if (!formData.name.trim()) {
+    let candidateTamilName = (formData.name || '').trim();
+    if (/[a-zA-Z]/.test(candidateTamilName)) {
+      const converted = transliterateSentence(candidateTamilName);
+      if (/[\u0B80-\u0BFF]/.test(converted)) {
+        candidateTamilName = converted;
+        setFormData((prev) => ({ ...prev, name: converted, fullName: converted }));
+      }
+    }
+
+    if (!candidateTamilName || !/[\u0B80-\u0BFF]/.test(candidateTamilName)) {
       showPopupAlert(
-        isTamil ? 'தமிழில் பெயர் விடுபட்டுள்ளது!' : 'Candidate Name in Tamil Missing!',
-        isTamil ? 'வரனின் பெயரை தமிழில் உள்ளிடுவது கட்டாயமாகும்.' : 'Candidate Name in Tamil is required.',
+        isTamil ? 'தமிழில் பெயர் விடுபட்டுள்ளது அல்லது தவறாக உள்ளது!' : 'Candidate Name in Tamil is required in Tamil script!',
+        isTamil
+          ? 'வரனின் பெயரை தமிழில் மட்டுமே உள்ளிட வேண்டும் (விசைப்பலகை அல்லது ஒலிபெயர்ப்பைப் பயன்படுத்தவும்).'
+          : 'Candidate Name in Tamil must be in Tamil script only. Please use the on-screen Tamil keyboard (Visaipalagai) or phonetic typing.',
         'error',
         'name'
       );
@@ -1107,7 +1118,14 @@ export default function RegisterModal({
                     value={formData.name}
                     onChange={handleChange}
                     lockTamil={true}
-                    showInputTools={isTamil}
+                    showInputTools={true}
+                    onBlur={(e) => {
+                      const raw = (e?.target?.value || formData.name || '').trim();
+                      if (/[a-zA-Z]/.test(raw)) {
+                        const converted = transliterateSentence(raw);
+                        setFormData((prev) => ({ ...prev, name: converted, fullName: converted }));
+                      }
+                    }}
                     placeholder={
                       formData.gender === 'bride'
                         ? 'எ.கா: நஸ்ரின் பானு'
@@ -1116,8 +1134,8 @@ export default function RegisterModal({
                     required
                     helperText={
                       isTamil
-                        ? 'வரனின் பெயரை தமிழில் உள்ளிடவும் (தமிழ் மட்டும்).'
-                        : 'Enter candidate name in Tamil (Tamil only).'
+                        ? 'வரனின் பெயரை தமிழில் உள்ளிடவும் (விசைப்பலகை அல்லது ஒலிபெயர்ப்பைப் பயன்படுத்தவும்).'
+                        : 'Candidate name must be in Tamil script only (use Visaipalagai keyboard or phonetic typing).'
                     }
                   />
                 </div>

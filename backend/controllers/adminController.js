@@ -340,6 +340,7 @@ export const updateUserSubscription = async (req, res) => {
     const patch = { subscriptionStatus: allowed.includes(subscriptionStatus) ? subscriptionStatus : 'premium' };
     if (patch.subscriptionStatus === 'premium') {
       patch.premiumExpiresAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+      patch.subscriptionPlan = Number(days) <= 35 ? 'monthly' : 'annual';
       patch.monthlyViewsCount = 0;
     }
     await updateUser(user, patch);

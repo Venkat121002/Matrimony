@@ -112,16 +112,33 @@ export default function Header({
                 <span className="font-extrabold text-[#fff7d6] text-xs sm:text-sm drop-shadow tracking-wide">
                   {translateName(!isTamil ? (currentUser.fullNameEn || currentUser.fullName || currentUser.name) : (currentUser.fullName || currentUser.name))}
                 </span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold border ${currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
-                      ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-gray-950 border-amber-300 shadow-sm'
-                      : 'bg-[#163828]/80 text-[#ecd08c] border-[#caa85d]/60 shadow-xs'
-                    }`}
-                >
-                  {currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
-                    ? (isTamil ? 'சந்தா (Subscribed)' : 'Subscribed')
-                    : (isTamil ? 'இலவச பயனர் (Free Tier)' : 'Free Tier')}
-                </span>
+                {(() => {
+                  const isSub = Boolean(
+                    (currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed) &&
+                    (!currentUser.premiumExpiresAt || new Date(currentUser.premiumExpiresAt) > new Date())
+                  );
+                  const isExp = Boolean(
+                    currentUser.subscriptionStatus === 'expired' ||
+                    (currentUser.premiumExpiresAt && new Date(currentUser.premiumExpiresAt) <= new Date())
+                  );
+                  return (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold border ${
+                        isSub
+                          ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-gray-950 border-amber-300 shadow-sm'
+                          : isExp
+                          ? 'bg-rose-900/80 text-rose-200 border-rose-500/60 shadow-xs'
+                          : 'bg-[#163828]/80 text-[#ecd08c] border-[#caa85d]/60 shadow-xs'
+                      }`}
+                    >
+                      {isSub
+                        ? (isTamil ? 'சந்தா (Subscribed)' : 'Subscribed')
+                        : isExp
+                        ? (isTamil ? 'காலாவதியானது (Expired)' : 'Expired')
+                        : (isTamil ? 'இலவச பயனர் (Free Tier)' : 'Free Tier')}
+                    </span>
+                  );
+                })()}
               </div>
 
               {/* View Profile Button and Logout Button beside it */}
@@ -179,8 +196,16 @@ export default function Header({
                       {translateName(!isTamil ? (currentUser.fullNameEn || currentUser.fullName || currentUser.name) : (currentUser.fullName || currentUser.name))}
                     </p>
                     <span className="inline-block mt-0.5 text-[10px] text-amber-300 font-bold">
-                      {currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed
+                      {Boolean(
+                        (currentUser.subscriptionStatus === 'premium' || currentUser.isSubscribed) &&
+                        (!currentUser.premiumExpiresAt || new Date(currentUser.premiumExpiresAt) > new Date())
+                      )
                         ? (isTamil ? 'சந்தா பயனர் (Subscribed)' : 'Subscribed User')
+                        : Boolean(
+                            currentUser.subscriptionStatus === 'expired' ||
+                            (currentUser.premiumExpiresAt && new Date(currentUser.premiumExpiresAt) <= new Date())
+                          )
+                        ? (isTamil ? 'காலாவதியான சந்தா (Expired)' : 'Expired Membership')
                         : (isTamil ? 'இலவச பயனர் (Free Tier)' : 'Free Tier User')}
                     </span>
                   </div>

@@ -5,10 +5,10 @@ import LiveAudioRecorder from './LiveAudioRecorder';
 import AudioPlayer from './AudioPlayer';
 import CountryCodeSelect from './CountryCodeSelect';
 import { COUNTRY_CALLING_CODES, getMaxDigitsForDialCode } from '../data/countryCodes';
+import { transliterateSentence } from '../utils/tamilTransliterate';
 
 const TamilInput = (props) => {
-  const { isTamil } = useLanguage();
-  return <TamilInputBase {...props} showInputTools={isTamil} />;
+  return <TamilInputBase {...props} showInputTools={props.showInputTools ?? true} />;
 };
 
 const parsePhoneWithCountryCode = (phone) => {
@@ -311,6 +311,15 @@ export default function EditProfileForm({ currentUser, onSave, onCancel }) {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
+                lockTamil={true}
+                showInputTools={true}
+                onBlur={(e) => {
+                  const raw = (e?.target?.value || formData.fullName || '').trim();
+                  if (/[a-zA-Z]/.test(raw)) {
+                    const converted = transliterateSentence(raw);
+                    setFormData((prev) => ({ ...prev, fullName: converted, name: converted }));
+                  }
+                }}
                 required
               />
             </div>

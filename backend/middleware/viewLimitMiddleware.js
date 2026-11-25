@@ -53,12 +53,17 @@ export const checkProfileViewLimit = async (req, res, next) => {
 
     // Premium users have unlimited views & contact details (if directPhoneAccess feature enabled)
     if (viewer.subscriptionStatus === 'premium') {
-      req.viewStats = {
-        isPremium: true,
-        unlimited: true,
-        canAccessContacts,
-      };
-      return next();
+      if (viewer.premiumExpiresAt && new Date(viewer.premiumExpiresAt) <= new Date()) {
+        viewer.subscriptionStatus = 'expired';
+        await updateUser(viewer, { subscriptionStatus: 'expired' });
+      } else {
+        req.viewStats = {
+          isPremium: true,
+          unlimited: true,
+          canAccessContacts,
+        };
+        return next();
+      }
     }
 
     // Free Trial / Free Tier Checks

@@ -5,7 +5,7 @@ import '@sarthak1407/react-transliterate/dist/index.css';
 import TamilVirtualKeyboard from './TamilVirtualKeyboard';
 import { useLanguage } from '../context/LanguageContext';
 import useTamilTransliteration from '../utils/useTamilTransliteration';
-import { nameDictionaryEnToTa, transliterateWord } from '../utils/tamilTransliterate';
+import { nameDictionaryEnToTa, transliterateWord, transliterateSentence } from '../utils/tamilTransliterate';
 
 const NAME_TRANSLITERATIONS = {
   siddiq: ['சித்தீக்', 'சித்திக்'],
@@ -46,6 +46,8 @@ export default function TamilInput({
     rest.transliterate
   );
 
+  const effectiveIsTamil = Boolean(lockTamil || isTamil);
+
   // Fallback transliteration hook for non-name inputs
   const {
     handleChange: handleLegacyChange,
@@ -54,7 +56,7 @@ export default function TamilInput({
   } = useTamilTransliteration({
     value,
     onChange,
-    isTamil,
+    isTamil: effectiveIsTamil,
     name,
     inputRef,
   });
@@ -125,6 +127,14 @@ export default function TamilInput({
   };
 
   const handleTransliterateBlur = (e) => {
+    const rawVal = e?.target?.value ?? value ?? '';
+    if (lockTamil && /[a-zA-Z]/.test(rawVal)) {
+      const transliterated = transliterateSentence(rawVal);
+      setValue(transliterated);
+      if (onChange) {
+        onChange({ target: { name, value: transliterated } });
+      }
+    }
     if (externalOnBlur) {
       externalOnBlur(e);
     }
@@ -189,10 +199,18 @@ export default function TamilInput({
             {label} {required && <span className="text-red-500">*</span>}
           </label>
 
-          {showInputTools && (
+          {(showInputTools || lockTamil) && (
             <div className="flex items-center gap-1 text-[10px] sm:text-[11px] flex-shrink-0 self-end">
               {/* Mode Switcher */}
-              {lockTamil || !showModeSwitcher ? (
+              {lockTamil ? (
+                <span
+                  className="px-1.5 py-0.5 rounded font-bold text-[10px] sm:text-[11px] border flex items-center gap-1 cursor-default select-none whitespace-nowrap bg-[#163828] text-[#edd48e] border-[#163828]"
+                  title="Tamil only (தமிழில் மட்டும்)"
+                >
+                  <FaLanguage className="text-xs" />
+                  <span>தமிழ்</span>
+                </span>
+              ) : !showModeSwitcher ? (
                 <span
                   className={`px-1.5 py-0.5 rounded font-bold text-[10px] sm:text-[11px] border flex items-center gap-1 cursor-default select-none whitespace-nowrap ${
                     isTamil
@@ -313,7 +331,7 @@ export default function TamilInput({
       )}
 
       {/* Virtual Keyboard */}
-      {showInputTools && (
+      {(showInputTools || lockTamil) && (
         <TamilVirtualKeyboard
           isOpen={showKeyboard}
           onClose={() => setShowKeyboard(false)}

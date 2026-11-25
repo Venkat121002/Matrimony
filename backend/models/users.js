@@ -26,7 +26,12 @@ export const {
 
 // Mirrors the old `checkTrialStatus()` instance method (in-memory only).
 export const checkTrialStatus = (user) => {
-  if (user.subscriptionStatus === 'free_trial' && user.trialExpiresAt < new Date()) {
+  if (!user) return null;
+  const now = new Date();
+  if (user.subscriptionStatus === 'free_trial' && user.trialExpiresAt && new Date(user.trialExpiresAt) < now) {
+    user.subscriptionStatus = 'expired';
+  }
+  if (user.subscriptionStatus === 'premium' && user.premiumExpiresAt && new Date(user.premiumExpiresAt) <= now) {
     user.subscriptionStatus = 'expired';
   }
   return user.subscriptionStatus;

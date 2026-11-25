@@ -63,9 +63,14 @@ export default function ProfileDetailsModal({
     (currentUser._id === profile._id ||
       currentUser.nikahId === profile.nikahId ||
       currentUser.id === profile.id);
+  const isPremiumActive = Boolean(
+    currentUser &&
+    (currentUser.subscriptionStatus === 'premium' &&
+      (!currentUser.premiumExpiresAt || new Date(currentUser.premiumExpiresAt) > new Date()))
+  );
   const isPremiumUser =
     currentUser &&
-    (currentUser.subscriptionStatus === 'premium' ||
+    (isPremiumActive ||
       currentUser.role === 'admin' ||
       isSelf);
   const canAccessContacts = Boolean(isPremiumUser && !profile.isContactLocked && profile.phone);

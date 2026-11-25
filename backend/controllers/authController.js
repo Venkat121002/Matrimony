@@ -549,16 +549,27 @@ export const getMe = async (req, res) => {
   try {
     const user = req.user;
     const now = new Date();
+    const previousStatus = user.subscriptionStatus;
+    if (checkTrialStatus(user) !== previousStatus) {
+      await updateUser(user, { subscriptionStatus: user.subscriptionStatus });
+    }
+
     const viewsUsed = await countViewsInMonth(user._id, currentMonthYear(now));
+    const isPremiumUser =
+      user.role === 'admin' ||
+      (user.subscriptionStatus === 'premium' &&
+        (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now));
 
     const userJson = { ...user };
     userJson.viewsStats = {
       viewsUsed,
-      viewsRemaining: user.subscriptionStatus === 'premium' ? 9999 : Math.max(0, 5 - viewsUsed),
+      viewsRemaining: isPremiumUser ? 9999 : Math.max(0, 5 - viewsUsed),
       monthlyLimit: 5,
-      isPremium: user.subscriptionStatus === 'premium',
+      isPremium: isPremiumUser,
       trialExpiresAt: user.trialExpiresAt,
+      premiumExpiresAt: user.premiumExpiresAt,
       isTrialExpired: user.subscriptionStatus === 'free_trial' && user.trialExpiresAt < now,
+      isPremiumExpired: user.subscriptionStatus === 'expired' || (user.premiumExpiresAt && new Date(user.premiumExpiresAt) <= now),
     };
 
     res.json({
@@ -846,7 +857,10 @@ export const updateMe = async (req, res) => {
           limit: user.viewLimit,
           used: user.viewsUsed,
           remaining: user.viewLimit - user.viewsUsed,
-          isPremium: user.subscriptionStatus === 'premium',
+          isPremium:
+            user.role === 'admin' ||
+            (user.subscriptionStatus === 'premium' &&
+              (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > new Date())),
         }
       }
     });

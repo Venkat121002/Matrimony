@@ -231,8 +231,12 @@ export const getProfileById = async (req, res) => {
     // With free tier, Contact details cannot be accessed.
     // If upgraded to premium (or admin, or viewing own profile), contact details can be accessed.
     const isSelf = viewer && (viewer._id === profile._id || viewer.nikahId === profile.nikahId);
-    const isPremium =
-      viewer && (viewer.role === 'admin' || viewer.subscriptionStatus === 'premium' || isSelf);
+    const isViewerPremium =
+      viewer &&
+      (viewer.role === 'admin' ||
+        (viewer.subscriptionStatus === 'premium' &&
+          (!viewer.premiumExpiresAt || new Date(viewer.premiumExpiresAt) > new Date())));
+    const isPremium = isViewerPremium || isSelf;
 
     lockContacts(profileJson, isPremium);
 
@@ -260,7 +264,10 @@ export const getMyShortlist = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
+    const isPremium =
+      user.role === 'admin' ||
+      (user.subscriptionStatus === 'premium' &&
+        (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > new Date()));
     const chosenList = (await getUsersByIds(user.shortlistedProfiles || []))
       .filter((profile) => !isAdministrativeProfile(profile));
     const settings = await getSettings();
@@ -310,7 +317,10 @@ export const toggleShortlist = async (req, res) => {
     if (isAdministrativeProfile(target)) {
       return res.status(404).json({ success: false, message: 'Profile not found.' });
     }
-    const isPremium = user.subscriptionStatus === 'premium' || user.role === 'admin';
+    const isPremium =
+      user.role === 'admin' ||
+      (user.subscriptionStatus === 'premium' &&
+        (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > new Date()));
     const settings = await getSettings();
 
     if (settings?.features?.shortlistAccess === false && !isPremium) {

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { getUserById, checkTrialStatus } from '../models/users.js';
+import { getUserById, checkTrialStatus, updateUser } from '../models/users.js';
 import { getJwtSecret } from '../config/secrets.js';
 
 const readToken = (req) => {
@@ -36,8 +36,11 @@ export const verifyToken = async (req, res, next) => {
       });
     }
 
-    // Refresh trial status if applicable
-    checkTrialStatus(user);
+    // Refresh trial / premium status if applicable
+    const previousStatus = user.subscriptionStatus;
+    if (checkTrialStatus(user) !== previousStatus) {
+      await updateUser(user, { subscriptionStatus: user.subscriptionStatus });
+    }
 
     req.user = user;
     next();
@@ -56,7 +59,10 @@ export const optionalAuth = async (req, res, next) => {
       const decoded = jwt.verify(token, getJwtSecret());
       const user = await getUserById(decoded.id);
       if (user && !user.isSuspended) {
-        checkTrialStatus(user);
+        const previousStatus = user.subscriptionStatus;
+        if (checkTrialStatus(user) !== previousStatus) {
+          await updateUser(user, { subscriptionStatus: user.subscriptionStatus });
+        }
         req.user = user;
       }
     }

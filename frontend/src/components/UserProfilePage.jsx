@@ -237,8 +237,11 @@ export default function UserProfilePage() {
     if (exists) {
       handleRemoveShortlist(id);
     } else {
-      const isPremium = currentUser?.subscriptionStatus === 'premium' || currentUser?.role === 'admin';
-      if (!isPremium && shortlistedProfiles.length >= freeChosenLimit) {
+      const isUserPremium =
+        currentUser?.role === 'admin' ||
+        (currentUser?.subscriptionStatus === 'premium' &&
+          (!currentUser?.premiumExpiresAt || new Date(currentUser?.premiumExpiresAt) > new Date()));
+      if (!isUserPremium && shortlistedProfiles.length >= freeChosenLimit) {
         showToast(
           isTamil
             ? `இலவச கணக்கில் அதிகபட்சம் ${freeChosenLimit} வரன்களை மட்டுமே தேர்வு செய்ய முடியும்.`
@@ -318,7 +321,15 @@ export default function UserProfilePage() {
 
   if (!currentUser) return null;
 
-  const isPremium = currentUser.subscriptionStatus === 'premium' || currentUser.role === 'admin';
+  const isPremiumActive = Boolean(
+    currentUser?.subscriptionStatus === 'premium' &&
+      (!currentUser?.premiumExpiresAt || new Date(currentUser?.premiumExpiresAt) > new Date())
+  );
+  const isPremium = isPremiumActive || currentUser?.role === 'admin';
+  const isPremiumExpired = Boolean(
+    currentUser?.subscriptionStatus === 'expired' ||
+      (currentUser?.premiumExpiresAt && new Date(currentUser?.premiumExpiresAt) <= new Date())
+  );
   const viewsUsed = Number(currentUser.monthlyViewsCount) || 0;
   const freeViewsLimit = Number(subscriptionSettings?.freeTierLimits?.maxProfileViews ?? 5);
   const freeChosenLimit = Number(subscriptionSettings?.freeTierLimits?.maxShortlistProfiles ?? 3);
@@ -490,21 +501,44 @@ export default function UserProfilePage() {
                     className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
                       isPremium
                         ? 'bg-emerald-700 text-white border border-emerald-500'
+                        : isPremiumExpired
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300'
                         : 'bg-amber-200 text-amber-900 border border-amber-400'
                     }`}
                   >
-                    {isPremium ? (isTamil ? 'செயலில் உள்ளது ✓' : 'Active Premium ✓') : (isTamil ? 'இலவசம் (வரம்பிற்கு உட்பட்டது)' : 'Free Tier (Limited)')}
+                    {isPremium
+                      ? (isTamil ? 'செயலில் உள்ளது ✓' : 'Active Premium ✓')
+                      : isPremiumExpired
+                      ? (isTamil ? 'காலாவதியானது (Expired)' : 'Expired')
+                      : (isTamil ? 'இலவசம் (வரம்பிற்கு உட்பட்டது)' : 'Free Tier (Limited)')}
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 mt-0.5">
-                  {isPremium
-                    ? (isTamil
-                        ? `உங்கள் பிரீமியம் சந்தா செல்லுபடியாகும் நாள்: ${
+                  {isPremium ? (
+                    isTamil ? (
+                      currentUser.subscriptionPlan === 'monthly'
+                        ? `உங்கள் மாதாந்திர பிரீமியம் சந்தா செல்லுபடியாகும் நாள்: ${
                             currentUser.premiumExpiresAt
-                              ? new Date(currentUser.premiumExpiresAt).toLocaleDateString(isTamil ? 'ta-IN' : 'en-IN', {
+                              ? new Date(currentUser.premiumExpiresAt).toLocaleDateString('ta-IN', {
+                                  dateStyle: 'medium',
+                                })
+                              : '30 நாட்கள்'
+                          }`
+                        : `உங்கள் வருடாந்திர பிரீமியம் சந்தா செல்லுபடியாகும் நாள்: ${
+                            currentUser.premiumExpiresAt
+                              ? new Date(currentUser.premiumExpiresAt).toLocaleDateString('ta-IN', {
                                   dateStyle: 'medium',
                                 })
                               : '1 ஆண்டு'
+                          }`
+                    ) : (
+                      currentUser.subscriptionPlan === 'monthly'
+                        ? `Your monthly membership is active until: ${
+                            currentUser.premiumExpiresAt
+                              ? new Date(currentUser.premiumExpiresAt).toLocaleDateString('en-IN', {
+                                  dateStyle: 'medium',
+                                })
+                              : '30 Days'
                           }`
                         : `Your annual membership is active until: ${
                             currentUser.premiumExpiresAt
@@ -512,10 +546,29 @@ export default function UserProfilePage() {
                                   dateStyle: 'medium',
                                 })
                               : '1 Year'
-                          }`)
-                    : (isTamil
-                        ? `இலவச கணக்கில் ${freeViewsLimit} வரன் விவரங்கள் மற்றும் ${freeChosenLimit} வரன்கள் மட்டுமே தேர்வு செய்ய முடியும்.`
-                        : `Free tier permits viewing up to ${freeViewsLimit} profiles and choosing up to ${freeChosenLimit} profiles.`)}
+                          }`
+                    )
+                  ) : isPremiumExpired ? (
+                    isTamil
+                      ? `உங்கள் பிரீமியம் சந்தா காலம் முடிவடைந்துவிட்டது (${
+                          currentUser.premiumExpiresAt
+                            ? new Date(currentUser.premiumExpiresAt).toLocaleDateString('ta-IN', {
+                                dateStyle: 'medium',
+                              })
+                            : ''
+                        }). வரம்பற்ற தொடர்புகள் மற்றும் வரன் விவரங்களை தொடர்ந்து பார்வையிட தயவுசெய்து புதுப்பிக்கவும்.`
+                      : `Your premium membership expired on: ${
+                          currentUser.premiumExpiresAt
+                            ? new Date(currentUser.premiumExpiresAt).toLocaleDateString('en-IN', {
+                                dateStyle: 'medium',
+                              })
+                            : ''
+                        }. Please renew to continue viewing unlimited profiles and contact details.`
+                  ) : (
+                    isTamil
+                      ? `இலவச கணக்கில் ${freeViewsLimit} வரன் விவரங்கள் மற்றும் ${freeChosenLimit} வரன்கள் மட்டுமே தேர்வு செய்ய முடியும்.`
+                      : `Free tier permits viewing up to ${freeViewsLimit} profiles and choosing up to ${freeChosenLimit} profiles.`
+                  )}
                 </p>
               </div>
             </div>
@@ -533,7 +586,11 @@ export default function UserProfilePage() {
                 className="btn-gold py-2.5 px-5 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg hover:scale-105 transition-all cursor-pointer"
               >
                 <FaBolt className="text-[#163828]" />
-                <span>{isTamil ? 'பிரீமியத்திற்கு மேம்படுத்த (மாதம் / ஆண்டு)' : 'Upgrade to Premium (Monthly / Annual)'}</span>
+                <span>
+                  {isPremiumExpired
+                    ? (isTamil ? 'சந்தாவை புதுப்பிக்க (மாதம் / ஆண்டு)' : 'Renew Premium Membership (Monthly / Annual)')
+                    : (isTamil ? 'பிரீமியத்திற்கு மேம்படுத்த (மாதம் / ஆண்டு)' : 'Upgrade to Premium (Monthly / Annual)')}
+                </span>
               </button>
             )}
           </div>

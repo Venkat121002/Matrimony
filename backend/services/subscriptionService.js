@@ -44,7 +44,12 @@ export const resolvePlan = (planId, settings) => {
 };
 
 export const isPremiumActive = (user) =>
-  user.subscriptionStatus === 'premium' && user.premiumExpiresAt && new Date(user.premiumExpiresAt) > new Date();
+  Boolean(
+    user &&
+      (user.role === 'admin' ||
+        (user.subscriptionStatus === 'premium' &&
+          (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > new Date())))
+  );
 
 export const isFeaturedActive = (user) =>
   user.isFeatured && user.featuredUntil && new Date(user.featuredUntil) > new Date();

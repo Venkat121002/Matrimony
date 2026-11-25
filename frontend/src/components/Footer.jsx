@@ -176,6 +176,17 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
             <button onClick={onOpenLogin} className="hover:text-white transition">{t('footerLogin')}</button>
           </div>
         </div>
+        <p className="max-w-6xl mx-auto mt-2.5 pt-2.5 border-t border-[#caa85d]/20 text-[11px] text-[#9d907a]">
+          Designed &amp; Developed by{' '}
+          <a
+            href="https://swordnex.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-[#eed48e] hover:text-white underline-offset-2 hover:underline transition"
+          >
+            SwordNex Technologies PVT Ltd
+          </a>
+        </p>
       </div>
     </footer>
   );

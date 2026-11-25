@@ -94,6 +94,18 @@ export default function Footer({ onOpenRegister, onOpenLogin, onOpenAbout, onOpe
                 </a>
               </div>
             </div>
+
+            {/* QR Code - Separated and Non-Clickable */}
+            <div className="pt-3 mt-1 border-t border-[#caa85d]/20">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 p-1.5 bg-white rounded-lg border-2 border-[#caa85d] shadow-md inline-block">
+                <img
+                  src="/qr-code.jpg"
+                  alt="QR Code"
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  draggable={false}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

@@ -8,7 +8,7 @@ import {
   deleteUserById,
   byCreatedDesc,
 } from '../models/users.js';
-import { totalCapturedPaise } from '../models/payments.js';
+import { totalCapturedPaise, findPayments, getPaymentById as getPaymentByIdModel, getPaymentByOrderId, updatePayment } from '../models/payments.js';
 import { countTickets } from '../models/supportTickets.js';
 import { deleteViewsForUser } from '../models/profileViews.js';
 import { streamStoredFile, deleteStoredFile } from '../middleware/uploadMiddleware.js';
@@ -23,7 +23,7 @@ import { getSettings, updateSettings } from '../models/settings.js';
  */
 export const getDashboardStats = async (req, res) => {
   try {
-    const [totalUsers, verifiedProfiles, activeSubscriptions, openTickets, totalRevenueInPaise, pendingUsers] =
+    const [totalUsers, verifiedProfiles, activeSubscriptions, openTickets, totalRevenueInPaise, pendingUsers, allPayments] =
       await Promise.all([
         countUsers({ role: 'user' }),
         countUsers({ isVerified: true }),
@@ -31,8 +31,12 @@ export const getDashboardStats = async (req, res) => {
         countTickets('open'),
         totalCapturedPaise(),
         findUsers({ verificationStatus: 'pending' }),
+        findPayments({}).catch(() => []),
       ]);
     const pendingVerifications = pendingUsers.length;
+    const pendingPaymentProofs = allPayments.filter(
+      (p) => (p.gateway === 'manual_qr' || p.proofScreenshot) && p.status === 'pending'
+    ).length;
     const totalRevenueInINR = totalRevenueInPaise / 100;
 
     // Recent activities (recent registrations and pending verifications)
@@ -48,6 +52,7 @@ export const getDashboardStats = async (req, res) => {
       stats: {
         totalUsers,
         pendingVerifications,
+        pendingPaymentProofs,
         verifiedProfiles,
         activeSubscriptions,
         openTickets,
@@ -571,6 +576,231 @@ export const updateSubscriptionSettings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update subscription settings.',
+    });
+  }
+};
+
+/**
+ * Get All Payment Proofs
+ * GET /api/admin/payment-proofs
+ */
+export const getPaymentProofs = async (req, res) => {
+  try {
+    const { status = 'all' } = req.query;
+
+    const allPayments = await findPayments({});
+    let proofs = allPayments.filter((p) => p.gateway === 'manual_qr' || p.proofScreenshot);
+
+    if (status && status !== 'all') {
+      proofs = proofs.filter((p) => p.status === status);
+    }
+
+    // Populate user info if not already populated
+    const populated = await Promise.all(
+      proofs.map(async (p) => {
+        let user = p.userId;
+        if (!user || typeof user === 'string' || !user.fullName) {
+          const fetched = await getUserById(p.userId).catch(() => null);
+          if (fetched) {
+            user = {
+              _id: fetched._id,
+              nikahId: fetched.nikahId,
+              fullName: fetched.fullName,
+              fullNameEn: fetched.fullNameEn,
+              phone: fetched.phone,
+              email: fetched.email,
+              district: fetched.district,
+              photo: fetched.photo || (fetched.photos && fetched.photos[0]),
+              isFeatured: fetched.isFeatured,
+              subscriptionStatus: fetched.subscriptionStatus,
+            };
+          } else {
+            user = p.userSnapshot || { nikahId: 'N/A', fullName: 'Unknown User' };
+          }
+        }
+        return {
+          ...p,
+          user,
+        };
+      })
+    );
+
+    const pendingCount = allPayments.filter(
+      (p) => (p.gateway === 'manual_qr' || p.proofScreenshot) && p.status === 'pending'
+    ).length;
+
+    res.json({
+      success: true,
+      proofs: populated,
+      total: populated.length,
+      pendingCount,
+    });
+  } catch (err) {
+    console.error('[Get Payment Proofs Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve payment proofs.',
+    });
+  }
+};
+
+/**
+ * Approve Payment Proof and Enable User Requested Feature
+ * PUT /api/admin/payment-proofs/:id/approve
+ */
+export const approvePaymentProof = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let payment = (await getPaymentByIdModel(id)) || (await getPaymentByOrderId(id));
+
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment record not found.' });
+    }
+
+    const userId = payment.userId?._id || payment.userId;
+    const user = await getUserById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User belonging to payment proof not found.' });
+    }
+
+    const planType = payment.planType || '';
+    const planName = (payment.planName || '').toLowerCase();
+    const isMarquee =
+      planType === 'featured_marquee' ||
+      planType === 'featured_profile' ||
+      planName.includes('running bar') ||
+      planName.includes('marquee') ||
+      planName.includes('featured');
+    const isMonthly =
+      planType === 'monthly_subscription' ||
+      planName.includes('monthly') ||
+      planName.includes('30 days');
+
+    let activatedFeature = '';
+
+    if (isMarquee) {
+      const settings = await getSettings();
+      const durationDays = Number(settings?.featuredMarquee?.durationDays || 15);
+      const featuredUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+      await updateUser(user, {
+        isFeatured: true,
+        featuredUntil,
+      });
+      activatedFeature = `Featured Profile in Running Marquee Bar (${durationDays} Days)`;
+    } else if (isMonthly) {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await updateUser(user, {
+        subscriptionStatus: 'premium',
+        subscriptionPlan: 'monthly',
+        premiumExpiresAt: expiresAt,
+        monthlyViewsCount: 0,
+      });
+      activatedFeature = 'Monthly Premium Membership (30 Days Unlimited)';
+    } else {
+      const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      await updateUser(user, {
+        subscriptionStatus: 'premium',
+        subscriptionPlan: 'annual',
+        premiumExpiresAt: expiresAt,
+        monthlyViewsCount: 0,
+      });
+      activatedFeature = 'Annual Premium Membership (1 Year Unlimited)';
+    }
+
+    await updatePayment(payment, {
+      status: 'approved',
+      capturedAt: new Date(),
+      verifiedAt: new Date(),
+      verifiedBy: req.user?.username || 'Admin',
+      rejectionReason: '',
+    });
+
+    res.json({
+      success: true,
+      message: `Alhamdulillah! Payment proof verified and ${activatedFeature} activated for ${user.nikahId} (${user.fullName}).`,
+      payment,
+      activatedFeature,
+    });
+  } catch (err) {
+    console.error('[Approve Payment Proof Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to approve payment proof.',
+    });
+  }
+};
+
+/**
+ * Reject Payment Proof
+ * PUT /api/admin/payment-proofs/:id/reject
+ */
+export const rejectPaymentProof = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason = 'Payment screenshot could not be verified or amount was not received.' } = req.body;
+
+    let payment = (await getPaymentByIdModel(id)) || (await getPaymentByOrderId(id));
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment record not found.' });
+    }
+
+    await updatePayment(payment, {
+      status: 'rejected',
+      rejectionReason: reason,
+      verifiedAt: new Date(),
+      verifiedBy: req.user?.username || 'Admin',
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment proof marked as rejected.',
+      payment,
+    });
+  } catch (err) {
+    console.error('[Reject Payment Proof Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject payment proof.',
+    });
+  }
+};
+
+/**
+ * Manually toggle featured status on any user
+ * PUT /api/admin/users/:id/featured
+ */
+export const toggleUserFeatured = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isFeatured, durationDays = 15 } = req.body;
+
+    const user = await getUserById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const setFeatured = Boolean(isFeatured);
+    const featuredUntil = setFeatured ? new Date(Date.now() + Number(durationDays) * 24 * 60 * 60 * 1000) : null;
+
+    await updateUser(user, {
+      isFeatured: setFeatured,
+      featuredUntil,
+    });
+
+    res.json({
+      success: true,
+      message: setFeatured
+        ? `Profile ${user.nikahId} (${user.fullName}) is now featured in the Running Marquee Bar for ${durationDays} days.`
+        : `Featured status removed for profile ${user.nikahId}.`,
+      isFeatured: setFeatured,
+      featuredUntil,
+    });
+  } catch (err) {
+    console.error('[Toggle User Featured Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update featured profile status.',
     });
   }
 };

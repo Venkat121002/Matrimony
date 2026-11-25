@@ -25,9 +25,26 @@ export const updatePayment = async (payment, patch) => {
   return payment;
 };
 
+export const getPaymentById = async (id) => {
+  if (!id) return null;
+  return plain(
+    await Payment.findById(id)
+      .populate('userId', 'fullName fullNameEn nikahId phone email district photo photos')
+      .lean()
+  );
+};
+
+export const findPayments = async (query = {}) => {
+  const docs = await Payment.find(query)
+    .sort({ createdAt: -1 })
+    .populate('userId', 'fullName fullNameEn nikahId phone email district photo photos')
+    .lean();
+  return docs.map(plain);
+};
+
 export const totalCapturedPaise = async () => {
   const [agg] = await Payment.aggregate([
-    { $match: { status: 'captured' } },
+    { $match: { status: { $in: ['captured', 'approved'] } } },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
   return agg ? agg.total : 0;

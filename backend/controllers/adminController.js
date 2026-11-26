@@ -13,7 +13,11 @@ import { countTickets } from '../models/supportTickets.js';
 import { deleteViewsForUser } from '../models/profileViews.js';
 import { streamStoredFile, deleteStoredFile } from '../middleware/uploadMiddleware.js';
 import { getAdminSecretKey, getAdminCreds } from '../config/secrets.js';
-import { sendVerificationStatusEmail } from '../services/emailService.js';
+import {
+  sendVerificationStatusEmail,
+  sendPaymentReceiptEmail,
+  sendPaymentProofRejectionEmail,
+} from '../services/emailService.js';
 import { notifyMatchingPremiumUsers } from '../services/matchingService.js';
 import { getSettings, updateSettings } from '../models/settings.js';
 
@@ -722,6 +726,19 @@ export const approvePaymentProof = async (req, res) => {
       rejectionReason: '',
     });
 
+    // Send payment confirmation & activation receipt email
+    if (user && user.email) {
+      sendPaymentReceiptEmail(user, {
+        ...payment,
+        planName: activatedFeature,
+        amount: payment.amount,
+        orderId: payment.orderId,
+        expiresAt: isMarquee ? user.featuredUntil : user.premiumExpiresAt,
+      }).catch((err) =>
+        console.error('[Email Worker] Payment proof approval receipt email error:', err.message)
+      );
+    }
+
     res.json({
       success: true,
       message: `Alhamdulillah! Payment proof verified and ${activatedFeature} activated for ${user.nikahId} (${user.fullName}).`,
@@ -757,6 +774,13 @@ export const rejectPaymentProof = async (req, res) => {
       verifiedAt: new Date(),
       verifiedBy: req.user?.username || 'Admin',
     });
+
+    const user = await getUserById(payment.userId);
+    if (user && user.email) {
+      sendPaymentProofRejectionEmail(user, payment, reason).catch((err) =>
+        console.error('[Email Worker] Payment rejection email error:', err.message)
+      );
+    }
 
     res.json({
       success: true,

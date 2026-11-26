@@ -1,42 +1,48 @@
 import nodemailer from 'nodemailer';
 
 // Create nodemailer transporter with configurable SMTP or fallback
-const createTransporter = () => {
-  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
-  const port = process.env.SMTP_PORT || process.env.EMAIL_PORT || 587;
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+let cachedTransporter = null;
 
-  if (host && user && pass) {
-    return nodemailer.createTransport({
+export const getTransporter = () => {
+  if (cachedTransporter) return cachedTransporter;
+
+  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+  const port = process.env.SMTP_PORT || process.env.EMAIL_PORT || 465;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const rawPass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || '';
+  const pass = String(rawPass).replace(/\s+/g, '');
+
+  if (user && pass) {
+    if (host === 'smtp.gmail.com' || user.includes('@gmail.com') || !host) {
+      cachedTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
+      return cachedTransporter;
+    }
+
+    cachedTransporter = nodemailer.createTransport({
       host,
       port: Number(port),
       secure: Number(port) === 465,
       auth: { user, pass },
     });
+    return cachedTransporter;
   }
 
-  if (user && pass && !host) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-    });
-  }
-
-  // Fallback: Test ethereal or console logger transport
   return null;
 };
 
-const transporter = createTransporter();
-
-const sendMailHelper = async ({ to, subject, html, text, useTestRecipient = true }) => {
-  const from = process.env.EMAIL_FROM || '"Tamil Muslim Nikkah" <no-reply@tamilnikah.com>';
+const sendMailHelper = async ({ to, subject, html, text, useTestRecipient = false }) => {
+  const from = process.env.EMAIL_FROM || `"Tamil Muslim Nikkah" <${process.env.SMTP_USER || 'arsathre7@gmail.com'}>`;
   const testRecipient = useTestRecipient ? process.env.EMAIL_TEST_RECIPIENT?.trim() : '';
   const recipient = testRecipient || to;
 
   if (testRecipient && testRecipient !== to) {
     console.info(`[Email] Test recipient override active: ${to} -> ${testRecipient}`);
   }
+
+  const transporter = getTransporter();
 
   if (transporter) {
     try {
@@ -77,14 +83,13 @@ export const sendWelcomeEmail = async (user) => {
         <div style="background-color: #f1e9d2; border-left: 4px solid #caa85d; padding: 15px; border-radius: 6px; margin: 20px 0;">
           <p style="margin: 0; font-weight: bold; color: #163828;">Profile ID: <span style="color: #8a6d2f; font-size: 18px;">${user.nikahId}</span></p>
           <p style="margin: 5px 0 0 0; font-size: 13px;">District: <strong>${user.district}</strong> | Gender: <strong>${user.gender === 'groom' ? 'மணமகன் (Groom)' : 'மணமகள் (Bride)'}</strong></p>
-          <p style="margin: 5px 0 0 0; font-size: 13px;">1-Month Free Trial: <strong>Active (5 detailed profile views)</strong></p>
         </div>
 
         <h3 style="color: #8a6d2f; margin-bottom: 8px;">📋 Account Verification in Progress</h3>
         <p style="font-size: 14px; margin-top: 0;">
           Your account is currently undergoing administrative verification to ensure maximum safety and trust for all families.
         </p>
-        <p style="font-size: 14px;">Once verified by our administrators, your profile will receive a <strong>Verified Badge (சரிபார்க்கப்பட்டது)</strong> and appear in public district searches.</p>
+        <p style="font-size: 14px;">Once verified by our administrators, your profile will be active and appear in public district searches.</p>
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
           Need assistance? Contact our matrimonial support helpline at <strong>+91 9344511158</strong> or reply to this email.
@@ -384,4 +389,118 @@ export const sendPasswordResetOtpEmail = async (user, otp) => {
   `;
 
   return sendMailHelper({ to: user.email, subject, html, text, useTestRecipient: false });
+};
+
+/**
+ * 6. Payment Proof Rejection Email
+ */
+export const sendPaymentProofRejectionEmail = async (user, payment, reason = '') => {
+  if (!user || !user.email) return { success: false, error: 'No email address on profile' };
+
+  const subject = `Update on your Payment Proof Verification (ID: ${user.nikahId}) - Tamil Muslim Nikkah`;
+  const text = `Assalamu Alaikum ${user.fullName}, We reviewed your submitted payment proof for ${payment.planName || 'membership'}. Unfortunately, it could not be approved due to: ${reason || 'Screenshot unclear or payment was not received'}. Please re-submit with a clear screenshot showing the transaction ID and amount.`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf7ef; border: 2px solid #caa85d; border-radius: 12px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #163828, #21543c); padding: 25px; text-align: center; border-bottom: 3px solid #caa85d;">
+        <h1 style="color: #ecd08c; margin: 0; font-size: 24px;">தமிழ் முஸ்லிம் நிக்காஹ்</h1>
+        <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px;">Payment Verification Notice</p>
+      </div>
+      <div style="padding: 30px; color: #2e261a; line-height: 1.6;">
+        <h2 style="color: #163828; margin-top: 0;">Assalamu Alaikum, ${user.fullName}!</h2>
+        <p>We reviewed your submitted payment proof (Order Ref: <strong>${payment.orderId || 'N/A'}</strong>).</p>
+
+        <div style="background-color: #ffebee; border: 1px solid #ef5350; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #c62828; margin: 0 0 10px 0; font-size: 16px;">கட்டணச் சரிபார்ப்பு தகவல் (Verification Notice)</h3>
+          <p style="margin: 0; font-size: 14px; color: #b71c1c;">
+            Reason: <strong>${reason || 'Screenshot was unclear, missing transaction details, or payment was not credited.'}</strong>
+          </p>
+        </div>
+
+        <p>Please log in to your profile and re-upload a clear screenshot showing the UPI / Bank reference number (UTR/Txn ID), date, and amount so our team can activate your plan immediately.</p>
+
+        <p style="margin-top: 25px; font-size: 13px; color: #665b49; border-top: 1px solid #e0d4be; padding-top: 15px;">
+          For assistance or manual payment confirmation, contact Admin Support via WhatsApp/Call at <strong>+91 9344511158</strong>.
+        </p>
+      </div>
+      <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
+        © ${new Date().getFullYear()} Tamil Muslim Nikkah. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  return sendMailHelper({ to: user.email, subject, html, text });
+};
+
+/**
+ * 7. Help Desk / Support Ticket Resolved Email
+ */
+export const sendSupportTicketResolvedEmail = async (ticket) => {
+  if (!ticket || !ticket.email) return { success: false, error: 'No email address on support ticket' };
+
+  const ticketIdStr = ticket.ticketId || (ticket._id ? String(ticket._id).slice(-6) : 'N/A');
+  const subject = `Your Help Desk Query Has Been Resolved [Ticket #${ticketIdStr}] - Tamil Muslim Nikkah`;
+  const text = `Assalamu Alaikum ${ticket.name || 'User'},
+
+Your support query regarding "${ticket.subject || 'General Inquiry'}" has been reviewed and resolved by our administration team.
+
+Ticket Reference: #${ticketIdStr}
+Subject: ${ticket.subject || 'General Inquiry'}
+
+Admin Response:
+${ticket.adminResponse || 'Your query has been resolved. If you require further assistance, please contact us.'}
+
+Original Query:
+${ticket.message || ''}
+
+If you have any further questions, feel free to reply to this email or reach us on WhatsApp at +91 9344511158.
+
+— Tamil Muslim Nikkah Matrimonial Support Team`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf7ef; border: 2px solid #caa85d; border-radius: 12px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #163828, #21543c); padding: 25px; text-align: center; border-bottom: 3px solid #caa85d;">
+        <h1 style="color: #ecd08c; margin: 0; font-size: 24px;">தமிழ் முஸ்லிம் நிக்காஹ்</h1>
+        <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px;">உதவி மையம் • Help Desk Resolution</p>
+      </div>
+      <div style="padding: 30px; color: #2e261a; line-height: 1.6;">
+        <h2 style="color: #163828; margin-top: 0;">Assalamu Alaikum, ${ticket.name || 'User'}!</h2>
+        <p>Alhamdulillah, your support query submitted to Tamil Muslim Nikkah Help Desk has been resolved by our support team.</p>
+
+        <div style="background-color: #f7f1e1; border: 1px solid #caa85d; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: #8a6d2f; font-weight: bold;">
+            டிக்கெட் எண் / Ticket ID: <span style="color: #163828;">#${ticketIdStr}</span>
+          </p>
+          <p style="margin: 0 0 8px 0; font-size: 14px; color: #163828; font-weight: bold;">
+            விசாரிப்பு தலைப்பு / Subject: ${ticket.subject || 'General Inquiry'}
+          </p>
+          <div style="margin-top: 10px; padding: 10px; background-color: #ffffff; border-left: 3px solid #8a6d2f; border-radius: 4px; font-size: 13px; color: #555;">
+            <strong>Your Query:</strong> "${ticket.message || ''}"
+          </div>
+        </div>
+
+        <div style="background-color: #e8f5e9; border: 1px solid #4caf50; border-radius: 8px; padding: 18px; margin: 20px 0;">
+          <h3 style="color: #2e7d32; margin: 0 0 8px 0; font-size: 15px;">
+            ✓ நிர்வாகத்தின் தீர்வு / Admin Response:
+          </h3>
+          <p style="margin: 0; color: #1b5e20; font-size: 14px; white-space: pre-line; line-height: 1.6;">
+            ${ticket.adminResponse || 'Your query has been reviewed and addressed by the administration team.'}
+          </p>
+        </div>
+
+        <p style="font-size: 13px; color: #555;">
+          If you have any further questions or if your issue is not fully resolved, feel free to reply directly to this email or reach our support helpline.
+        </p>
+
+        <p style="margin-top: 25px; font-size: 13px; color: #665b49; border-top: 1px solid #e0d4be; padding-top: 15px;">
+          Helpline / WhatsApp: <strong>+91 9344511158</strong> | Email: <strong>arsathre7@gmail.com</strong>
+        </p>
+      </div>
+      <div style="background-color: #163828; color: #eed89f; padding: 15px; text-align: center; font-size: 12px;">
+        © ${new Date().getFullYear()} Tamil Muslim Nikkah. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  return sendMailHelper({ to: ticket.email, subject, html, text });
 };

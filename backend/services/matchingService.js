@@ -1,5 +1,6 @@
 import { findUsers, updateUser } from '../models/users.js';
 import { sendMatchingProfileRecommendationEmail } from './emailService.js';
+import { isPremiumActive } from './subscriptionService.js';
 
 /**
  * Checks whether a new profile is compatible with a premium user's criteria.
@@ -69,7 +70,7 @@ export const notifyMatchingPremiumUsers = async (newProfile) => {
 
     // Find all active premium users of the opposite gender
     const premiumUsers = (await findUsers({ gender: targetGender, subscriptionStatus: 'premium' })).filter(
-      (u) => u.isSuspended !== true && u._id !== newProfile._id
+      (u) => u.isSuspended !== true && u._id !== newProfile._id && isPremiumActive(u)
     );
 
     if (!premiumUsers || premiumUsers.length === 0) {

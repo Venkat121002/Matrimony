@@ -6,6 +6,7 @@ import {
   deleteTicketById,
   deleteResolvedTickets as removeResolvedTickets,
 } from '../models/supportTickets.js';
+import { sendSupportTicketResolvedEmail } from '../services/emailService.js';
 
 export const createTicket = async (req, res) => {
   try {
@@ -69,12 +70,20 @@ export const updateTicket = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Ticket not found.' });
     }
 
+    const previousStatus = ticket.status;
     const patch = {};
     if (['open', 'in_progress', 'resolved'].includes(status)) patch.status = status;
     if (adminResponse !== undefined) patch.adminResponse = String(adminResponse);
     if (status === 'resolved') patch.resolvedAt = new Date();
 
     await patchTicket(ticket, patch);
+
+    // If ticket was marked resolved, trigger email notification to the user
+    if (status === 'resolved' && (previousStatus !== 'resolved' || adminResponse)) {
+      sendSupportTicketResolvedEmail({ ...ticket, ...patch }).catch((err) =>
+        console.error('[Email Worker] Support ticket resolved email error:', err.message)
+      );
+    }
 
     res.json({
       success: true,

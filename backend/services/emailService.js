@@ -83,14 +83,13 @@ export const sendWelcomeEmail = async (user) => {
         <div style="background-color: #f1e9d2; border-left: 4px solid #caa85d; padding: 15px; border-radius: 6px; margin: 20px 0;">
           <p style="margin: 0; font-weight: bold; color: #163828;">Profile ID: <span style="color: #8a6d2f; font-size: 18px;">${user.nikahId}</span></p>
           <p style="margin: 5px 0 0 0; font-size: 13px;">District: <strong>${user.district}</strong> | Gender: <strong>${user.gender === 'groom' ? 'மணமகன் (Groom)' : 'மணமகள் (Bride)'}</strong></p>
-          <p style="margin: 5px 0 0 0; font-size: 13px;">1-Month Free Trial: <strong>Active (5 detailed profile views)</strong></p>
         </div>
 
         <h3 style="color: #8a6d2f; margin-bottom: 8px;">📋 Account Verification in Progress</h3>
         <p style="font-size: 14px; margin-top: 0;">
           Your account is currently undergoing administrative verification to ensure maximum safety and trust for all families.
         </p>
-        <p style="font-size: 14px;">Once verified by our administrators, your profile will receive a <strong>Verified Badge (சரிபார்க்கப்பட்டது)</strong> and appear in public district searches.</p>
+        <p style="font-size: 14px;">Once verified by our administrators, your profile will be active and appear in public district searches.</p>
 
         <p style="margin-top: 25px; font-size: 13px; color: #665b49;">
           Need assistance? Contact our matrimonial support helpline at <strong>+91 9344511158</strong> or reply to this email.
